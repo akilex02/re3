@@ -13,7 +13,10 @@ pub fn to_gta_cell(m: (i32, i32, i32)) -> [i32; 3] {
 /// Minecraft yaw/pitch in degrees for a GTA direction (0 yaw south, positive pitch looks down).
 pub fn yaw_pitch(dir: [f64; 3]) -> (f64, f64) {
     let m = to_mc_point(dir).normalize_or_zero();
-    ((-m.x).atan2(m.z).to_degrees(), (-m.y).clamp(-1.0, 1.0).asin().to_degrees())
+    (
+        (-m.x).atan2(m.z).to_degrees(),
+        (-m.y).clamp(-1.0, 1.0).asin().to_degrees(),
+    )
 }
 
 #[cfg(test)]
@@ -30,7 +33,10 @@ mod tests {
         // point inside GTA cell (2,3,4) at (2.5,3.5,4.5) lands in the mapped MC cell
         let p = to_mc_point([2.5, 3.5, 4.5]);
         let c = to_mc_cell([2, 3, 4]);
-        assert_eq!((p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32), c);
+        assert_eq!(
+            (p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32),
+            c
+        );
     }
     #[test]
     fn directions_map_to_minecraft_yaw() {

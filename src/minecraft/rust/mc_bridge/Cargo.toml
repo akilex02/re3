@@ -9,6 +9,7 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 minecraftoss-player = { path = "minecraftoss/player" }
+anyhow = "1"
 glam = "0.29"
 serde_json = "1"
 

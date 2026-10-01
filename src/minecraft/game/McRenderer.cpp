@@ -16,7 +16,7 @@ static std::vector<RwImVertexIndex> indexBuffer;
 static std::vector<Mc::McVertex> batchVerts;
 static std::vector<uint16_t> batchIdx;
 static uint32 lastGeneration;
-static RwTexture *lastTexture;
+static RwTexture *lastTexture;	// compared only, never dereferenced
 
 namespace McRenderer
 {
@@ -92,13 +92,15 @@ Render(Mc::World &world)
 	RwRenderStateGet(rwRENDERSTATESRCBLEND, &prevSrcBlend);
 	RwRenderStateGet(rwRENDERSTATEDESTBLEND, &prevDestBlend);
 
-	// binding through the raster state ignores the texture's own filter and addressing, so set them here
+	// Binding through the raster state ignores the texture's own filter and addressing, so set them here.
+	// The raster is unbound first: librw GL3's setAddressU/V only reach GL while a raster is bound (and
+	// even then not reliably), whereas binding a raster applies the cached filter/addressing to it.
+	RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nil);
 	if(texture != nil){
-		RwRenderStateSet(rwRENDERSTATETEXTURERASTER, RwTextureGetRaster(texture));
 		RwRenderStateSet(rwRENDERSTATETEXTUREFILTER, (void*)rwFILTERNEAREST);
 		RwRenderStateSet(rwRENDERSTATETEXTUREADDRESS, (void*)rwTEXTUREADDRESSCLAMP);
-	}else
-		RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nil);
+		RwRenderStateSet(rwRENDERSTATETEXTURERASTER, RwTextureGetRaster(texture));
+	}
 	RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)TRUE);
 	RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)TRUE);
 	RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)TRUE);
@@ -110,10 +112,14 @@ Render(Mc::World &world)
 	for(MeshMap::const_iterator it = meshes.begin(); it != meshes.end(); ++it)
 		DrawMesh(it->second);
 
+	// same order as above: unbind, restore filter/addressing, then rebind so the old raster gets them applied
+	if(texture != nil){
+		RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nil);
+		RwRenderStateSet(rwRENDERSTATETEXTUREFILTER, (void*)(uintptr)prevFilter);
+		RwRenderStateSet(rwRENDERSTATETEXTUREADDRESSU, (void*)(uintptr)prevAddressU);
+		RwRenderStateSet(rwRENDERSTATETEXTUREADDRESSV, (void*)(uintptr)prevAddressV);
+	}
 	RwRenderStateSet(rwRENDERSTATETEXTURERASTER, prevRaster);
-	RwRenderStateSet(rwRENDERSTATETEXTUREFILTER, (void*)(uintptr)prevFilter);
-	RwRenderStateSet(rwRENDERSTATETEXTUREADDRESSU, (void*)(uintptr)prevAddressU);
-	RwRenderStateSet(rwRENDERSTATETEXTUREADDRESSV, (void*)(uintptr)prevAddressV);
 	RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)(uintptr)prevZTest);
 	RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)(uintptr)prevZWrite);
 	RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)(uintptr)prevVertexAlpha);

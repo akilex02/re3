@@ -94,3 +94,41 @@ MC_TEST(ray_diagonal_hits_expected_cell)
 	MC_CHECK(h.hit);
 	MC_CHECK_EQ(h.x, 3); MC_CHECK_EQ(h.y, 3);
 }
+
+MC_TEST(ray_zero_direction_with_huge_maxdist_misses)
+{
+	World w;
+	w.Set(1, 0, 0, BLOCK_STONE);
+	// Zero direction with huge maxDist should miss, not hang
+	RayHit h = RayCast(w, 0.5f, 0.5f, 0.5f, 0, 0, 0, 1e30f);
+	MC_CHECK(!h.hit);
+}
+
+MC_TEST(ray_nan_maxdist_misses)
+{
+	World w;
+	w.Set(1, 0, 0, BLOCK_STONE);
+	// NaN maxDist should not crash and should miss
+	volatile float nan_val = 0.0f / 0.0f;
+	RayHit h = RayCast(w, 0.5f, 0.5f, 0.5f, 1, 0, 0, nan_val);
+	MC_CHECK(!h.hit);
+}
+
+MC_TEST(ray_infinite_maxdist_empty_world_terminates)
+{
+	World w;
+	// Infinite maxDist in empty world should terminate due to 4096 clamp, not hang
+	RayHit h = RayCast(w, 0.5f, 0.5f, 0.5f, 1, 0, 0, 1e30f);
+	MC_CHECK(!h.hit);
+}
+
+MC_TEST(ray_origin_on_integer_coordinate)
+{
+	World w;
+	w.Set(2, 0, 0, BLOCK_STONE);
+	// Origin at (0,0,0), direction (1,0,0), should hit cell (2,0,0) with nx=-1
+	RayHit h = RayCast(w, 0.0f, 0.0f, 0.0f, 1, 0, 0, 10);
+	MC_CHECK(h.hit);
+	MC_CHECK_EQ(h.x, 2);
+	MC_CHECK_EQ(h.nx, -1);
+}

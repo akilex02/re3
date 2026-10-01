@@ -29,6 +29,15 @@ RayHit RayCast(const World &w, float ox, float oy, float oz, float dx, float dy,
 		}
 	}
 
+	// Reject zero-direction rays and invalid maxDist (NaN, negative)
+	if(step[0] == 0 && step[1] == 0 && step[2] == 0)
+		return miss;
+	if(!(maxDist >= 0.0f))
+		return miss;
+
+	// Clamp maxDist to prevent unbounded walks (callers use reach 6)
+	float maxDistClamped = maxDist > 4096.0f ? 4096.0f : maxDist;
+
 	float t = 0.0f;
 	int n[3] = { 0, 0, 0 };
 	for(;;){
@@ -41,7 +50,7 @@ RayHit RayCast(const World &w, float ox, float oy, float oz, float dx, float dy,
 			a = tMax[0] < tMax[2] ? 0 : 2;
 		else
 			a = tMax[1] < tMax[2] ? 1 : 2;
-		if(tMax[a] > maxDist)
+		if(tMax[a] > maxDistClamped)
 			return miss;
 		t = tMax[a];
 		cell[a] += step[a];

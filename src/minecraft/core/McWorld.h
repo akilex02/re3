@@ -45,6 +45,7 @@ public:
 	bool Set(int x, int y, int z, uint8_t id);
 
 	size_t ChunkCount() const { return m_chunks.size(); }
+	bool GetBounds(int &minX, int &minY, int &minZ, int &maxX, int &maxY, int &maxZ) const;
 	Chunk *FindChunk(ChunkPos p);
 	const Chunk *FindChunk(ChunkPos p) const;
 	const ChunkMap &Chunks() const { return m_chunks; }

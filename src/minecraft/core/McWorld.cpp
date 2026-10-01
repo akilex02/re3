@@ -30,6 +30,30 @@ const Chunk *World::FindChunk(ChunkPos p) const
 	return it == m_chunks.end() ? nullptr : it->second;
 }
 
+bool World::GetBounds(int &minX, int &minY, int &minZ, int &maxX, int &maxY, int &maxZ) const
+{
+	if(m_chunks.empty())
+		return false;
+	bool first = true;
+	for(ChunkMap::const_iterator it = m_chunks.begin(); it != m_chunks.end(); ++it){
+		int x0 = it->first.x * CHUNK_SIZE, y0 = it->first.y * CHUNK_SIZE, z0 = it->first.z * CHUNK_SIZE;
+		int x1 = x0 + CHUNK_SIZE - 1, y1 = y0 + CHUNK_SIZE - 1, z1 = z0 + CHUNK_SIZE - 1;
+		if(first){
+			minX = x0; minY = y0; minZ = z0;
+			maxX = x1; maxY = y1; maxZ = z1;
+			first = false;
+		}else{
+			if(x0 < minX) minX = x0;
+			if(y0 < minY) minY = y0;
+			if(z0 < minZ) minZ = z0;
+			if(x1 > maxX) maxX = x1;
+			if(y1 > maxY) maxY = y1;
+			if(z1 > maxZ) maxZ = z1;
+		}
+	}
+	return true;
+}
+
 uint8_t World::Get(int x, int y, int z) const
 {
 	ChunkPos p = { FloorDiv(x, CHUNK_SIZE), FloorDiv(y, CHUNK_SIZE), FloorDiv(z, CHUNK_SIZE) };

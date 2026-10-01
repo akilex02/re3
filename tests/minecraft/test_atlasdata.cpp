@@ -99,6 +99,63 @@ MC_TEST(atlas_rejected_urls)
 	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a$(x)"));
 	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a\nb"));
 	MC_CHECK(!IsAllowedMojangUrl(std::string("https://piston-data.mojang.com/") + std::string(600, 'a')));
+	// Uppercase host
+	MC_CHECK(!IsAllowedMojangUrl("https://PISTON-DATA.mojang.com/x"));
+	// Port number
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com:8080/x"));
+	// Trailing dot on host
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com./x"));
+	// Percent sign (unsafe on Windows cmd.exe)
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a%20b"));
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/%PATH%"));
+	// Ampersand (unsafe on Windows cmd.exe)
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a&b"));
+	// Pipe
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a|b"));
+	// Backslash
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a\\b"));
+	// Less-than
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a<b"));
+	// Greater-than
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a>b"));
+	// Asterisk
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a*b"));
+	// Exclamation
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a!b"));
+	// Hash
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a#b"));
+	// Left paren
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a(b"));
+	// Right paren
+	MC_CHECK(!IsAllowedMojangUrl("https://piston-data.mojang.com/a)b"));
+	// Non-ASCII byte
+	MC_CHECK(!IsAllowedMojangUrl(std::string("https://piston-data.mojang.com/a") + char(0xC3) + char(0xA9)));
+	// Embedded NUL (31 chars for prefix, so pad to put NUL at position 34)
+	MC_CHECK(!IsAllowedMojangUrl(std::string("https://piston-data.mojang.com/a\0b", 34)));
+}
+
+MC_TEST(atlas_url_edge_cases)
+{
+	// Path-only /? is harmless and accepted (non-empty path)
+	MC_CHECK(IsAllowedMojangUrl("https://piston-data.mojang.com/?"));
+	// Length 511 accepted (prefix is 31 chars, pad with 'a' to 511 total)
+	std::string len511 = std::string("https://piston-data.mojang.com/") + std::string(480, 'a');
+	MC_CHECK_EQ(len511.size(), 511);
+	MC_CHECK(IsAllowedMojangUrl(len511));
+	// Length 512 rejected
+	std::string len512 = len511 + "a";
+	MC_CHECK_EQ(len512.size(), 512);
+	MC_CHECK(!IsAllowedMojangUrl(len512));
+	// Realistic URL with query string and plus
+	MC_CHECK(IsAllowedMojangUrl("https://launchermeta.mojang.com/mc/game/x.json?v=1+2"));
+}
+
+MC_TEST(atlas_extract_client_url_bounded_by_client_object)
+{
+	// client has no url of its own; the url is from server object
+	std::string url;
+	const char *json = "{\"downloads\":{\"client\":{\"sha1\":\"x\"},\"server\":{\"url\":\"https://piston-data.mojang.com/v1/objects/s/server.jar\"}}}";
+	MC_CHECK(!ExtractClientUrl(json, url));
 }
 
 MC_TEST(atlas_block_texture_files)

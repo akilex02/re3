@@ -75,7 +75,18 @@ bool ExtractClientUrl(const std::string &versionJson, std::string &url)
 	size_t c = versionJson.find("\"client\"", d);
 	if(c == std::string::npos)
 		return false;
-	return JsonFindString(versionJson, "url", c, url);
+	// Find the closing brace of the client object (no nested braces)
+	size_t closeBrace = versionJson.find('}', c);
+	if(closeBrace == std::string::npos)
+		return false;
+	// Search for url within the client object
+	size_t keyPos = 0;
+	if(!JsonFindString(versionJson, "url", c, url, &keyPos))
+		return false;
+	// Verify the url key belongs to the client object (keyPos < closing brace)
+	if(keyPos >= closeBrace)
+		return false;
+	return true;
 }
 
 bool IsAllowedMojangUrl(const std::string &url)
@@ -89,8 +100,8 @@ bool IsAllowedMojangUrl(const std::string &url)
 	for(size_t i = 0; i < url.size(); i++){
 		char c = url[i];
 		bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-			c == '.' || c == '_' || c == '~' || c == ':' || c == '/' || c == '?' || c == '&' ||
-			c == '=' || c == '%' || c == '+' || c == '-';
+			c == '.' || c == '_' || c == '~' || c == ':' || c == '/' || c == '?' ||
+			c == '=' || c == '+' || c == '-';
 		if(!ok)
 			return false;
 	}

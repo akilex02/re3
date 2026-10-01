@@ -17,10 +17,13 @@ bool JsonFindString(const std::string &json, const char *key, size_t from, std::
 	size_t *keyPos = nullptr, size_t *after = nullptr);
 
 bool ExtractLatestRelease(const std::string &manifest, std::string &id);
+// The returned URL is NOT validated: callers must pass it through IsAllowedMojangUrl before using it.
 bool ExtractVersionUrl(const std::string &manifest, const std::string &id, std::string &url);
+// The returned URL is NOT validated: callers must pass it through IsAllowedMojangUrl before using it.
 bool ExtractClientUrl(const std::string &versionJson, std::string &url);
 
-// https only, allowlisted Mojang host, non-empty path, safe characters, < 512 chars, no '@'.
+// https only, allowlisted Mojang host, non-empty path, safe characters [A-Za-z0-9._~:/?=+-], < 512 chars, no '@'.
+// Rejects % and & (unsafe on Windows cmd.exe), uppercase hosts, ports, trailing dots.
 bool IsAllowedMojangUrl(const std::string &url);
 
 // File name under assets/minecraft/textures/block/ for a block id, or nullptr.

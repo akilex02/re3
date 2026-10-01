@@ -104,8 +104,11 @@ Update(Mc::World &world)
 			// breaking never affects GTA geometry, only peds can be hit
 			if(gtaEntity->IsPed()){
 				CPed *ped = (CPed*)gtaEntity;
-				ped->InflictDamage(player, WEAPONTYPE_BASEBALLBAT, 10.0f, PEDPIECE_TORSO, 0);
-			}
+				printf("McInteract: hit ped (model %d health %.1f)\n", ped->GetModelIndex(), (double)ped->m_fHealth);
+				bool damaged = ped->InflictDamage(player, WEAPONTYPE_BASEBALLBAT, 10.0f, PEDPIECE_TORSO, 0);
+				printf("McInteract: damage applied: %d\n", (int)damaged);
+			}else
+				printf("McInteract: left click hit non-ped GTA entity (type %d)\n", (int)gtaEntity->GetType());
 			return;
 		}
 		if(!hit.hit)

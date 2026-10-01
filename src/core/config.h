@@ -313,6 +313,7 @@ enum Config {
 #define EXTENDED_PIPELINES		// custom render pipelines (includes Neo)
 #define SCREEN_DROPLETS			// neo water droplets
 #define NEW_RENDERER		// leeds-like world rendering, needs librw
+#define MINECRAFT_MODE        // Steve mode: voxel blocks in the GTA world (src/minecraft)
 #endif
 
 #define FIX_SPRITES	// fix sprites aspect ratio(moon, coronas, particle etc)

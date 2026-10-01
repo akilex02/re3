@@ -74,6 +74,9 @@
 #include "MemoryHeap.h"
 #ifdef USE_OUR_VERSIONING
 #include "GitSHA1.h"
+#ifdef MINECRAFT_MODE
+#include "McMode.h"
+#endif
 #endif
 
 GlobalScene Scene;
@@ -1436,6 +1439,9 @@ RenderDebugShit(void)
 void
 RenderEffects(void)
 {
+#ifdef MINECRAFT_MODE
+	McMode::Render();
+#endif
 #ifdef NEW_RENDERER
 	if(gbNewRenderer){
 		RenderEffects_new();

@@ -90,6 +90,9 @@
 #ifdef USE_TEXTURE_POOL
 #include "TexturePools.h"
 #endif
+#ifdef MINECRAFT_MODE
+#include "McMode.h"
+#endif
 
 eLevelName CGame::currLevel;
 bool CGame::bDemoMode = true;
@@ -662,11 +665,17 @@ bool CGame::Initialise(const char* datFile)
 	CCollision::ms_collisionInMemory = currLevel;
 	for (int i = 0; i < MAX_PADS; i++)
 		CPad::GetPad(i)->Clear(true);
+#ifdef MINECRAFT_MODE
+	McMode::Init();
+#endif
 	return true;
 }
 
 bool CGame::ShutDown(void)
 {
+#ifdef MINECRAFT_MODE
+	McMode::Shutdown();
+#endif
 	CReplay::FinishPlayback();
 	CPlane::Shutdown();
 	CTrain::Shutdown();
@@ -1073,6 +1082,9 @@ void CGame::Process(void)
 
 		PUSH_MEMID(MEMID_WORLD);
 		CWorld::Process();
+#ifdef MINECRAFT_MODE
+		McMode::Update();
+#endif
 		POP_MEMID();
 
 		gAccidentManager.Update();

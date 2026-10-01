@@ -36,7 +36,7 @@ Submodules (`vendor/librw`, opus, ogg, opusfile) must be checked out (`git clone
 
 ## Minecraft mode (branch `minecraft-mode`, fork project)
 
-This branch adds a "Steve mode" to re3 (voxel blocks in the GTA III world, F8 toggles it). **Start from `docs/minecraft/HANDOFF.md`**: it has the build/test/run commands, the code map (`src/minecraft/core` for pure code with tests in `tests/minecraft`, `src/minecraft/game` for the re3 side), the known limitations and the prioritised list of remaining work. Specs and plans are in `docs/superpowers/specs` and `docs/superpowers/plans`.
+This branch adds a "Steve mode" to re3 (voxel blocks in the GTA III world, F8 toggles it). **Start from `docs/minecraft/HANDOFF.md`**: it has the build/test/run commands, the code map (`src/minecraft/core` for pure code with tests in `tests/minecraft`, `src/minecraft/game` for the re3 side), the known limitations and the prioritised list of remaining work. Specs and plans are in `docs/superpowers/specs` and `docs/superpowers/plans`. The survival core (inventory, mining, crafting) is a Rust staticlib `src/minecraft/rust/mc_bridge` over the external MinecraftOSS crates (CMake `RE3_MINECRAFT_SURVIVAL`, needs `cargo`; see HANDOFF section 9 and `scripts/minecraft/fetch-catalogs.sh`).
 
 Rules that matter when working on it:
 - Everything lives in `src/minecraft` behind `#ifdef MINECRAFT_MODE` (CMake option `RE3_MINECRAFT_MODE`, not `config.h`). Rockstar files only get one-line guarded hooks (`Game.cpp`, `main.cpp`).

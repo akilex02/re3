@@ -1,6 +1,6 @@
 # Minecraft mode para re3 (GTA III): estado y traspaso
 
-Documento para retomar el trabajo en otra conversación sin cargar el historial. Última actualización: 2026-10-01. Rama: `minecraft-mode` (sin fusionar en `master`).
+Documento para retomar el trabajo en otra conversación sin cargar el historial. Última actualización: 2026-09-30 (núcleo de supervivencia añadido; ver sección 9). Rama: `minecraft-mode` (sin fusionar en `master`).
 
 ## 1. Qué es
 
@@ -78,3 +78,23 @@ Cobertura de tests: caras de borde en `World::Set`; casos u/v del push de `McOri
 Flujo usado (skills de superpowers): brainstorming → spec en `docs/superpowers/specs/` → plan en `docs/superpowers/plans/` → ejecución con subagentes (un implementador por tarea, revisión de cumplimiento y calidad, rondas de corrección, revisión final). Los libros de registro (`.superpowers/sdd/…`) no se versionan; si faltan, basta con este documento, los specs/plans y `git log`. La memoria de Claude de este proyecto está en `~/.claude/projects/-home-akilex-Descargas-gtas/memory/`.
 
 Los commits de la rama llevan el trailer `Co-Authored-By: Claude Sonnet 5.5`.
+
+## 9. Núcleo de supervivencia (MinecraftOSS)
+
+Spec: `docs/superpowers/specs/2026-09-30-minecraft-survival-core-design.md` (incluye la hoja de ruta basada en SkyCraft en su sección 11). Plan: `docs/superpowers/plans/2026-09-30-minecraft-survival-core.md` (contiene la lista de desviaciones respecto al spec).
+
+**Qué hay.** Un crate Rust `mc_bridge` (`src/minecraft/rust/mc_bridge`, staticlib con API C en `src/minecraft/rust/mc_bridge.h`) envuelve `minecraftoss-player` (inventario, crafteo con las recetas reales de Mojang, minería con tiempos y herramientas, desgaste, loot). El mundo de voxels sigue en C++; Rust lo ve por callbacks `get/set` por celda.
+
+**Compilar.** Hace falta `cargo`, `liblzma` y `libbz2` (el crate `zip` los pide: `liblzma-dev`/`libbz2-dev` o equivalentes). Opciones CMake: `RE3_MINECRAFT_SURVIVAL` (ON por defecto) y `RE3_MINECRAFTOSS_DIR` (por defecto `../2010-rust-rewrite-mashup-main/third_party/minecraftoss`, relativo a la raíz del repo: en otra máquina hay que fijarlo). Sin `cargo` o sin ese directorio el modo Steve compila igual, sin supervivencia. CMake crea un symlink `src/minecraft/rust/mc_bridge/minecraftoss` (ignorado por git). Tests de Rust: `cd src/minecraft/rust/mc_bridge && MC_CLIENT_JAR=<ruta al client.jar> MC_ITEM_CATALOG=<ruta al catálogo> cargo test` (sin esas variables los tests con datos reales imprimen `SKIPPED`).
+
+**Datos de Mojang (no se versionan).** `mcassets/client.jar` ahora **persiste** (lo lee el núcleo; la descarga va a `client.jar.part` y se renombra al terminar). Además hace falta `mcassets/item-catalog-26.3.json`: desde la carpeta del juego, `sh /home/akilex/Descargas/gtas/re3/scripts/minecraft/fetch-catalogs.sh` lo descomprime del mashup. Mientras falte alguno de los dos, el modo funciona como antes (hotbar clásica de 4 bloques).
+
+**Controles con supervivencia lista.** F8 activa el modo; **F9** construye junto al jugador un parche de prueba (piedra con menas de carbón y hierro, un árbol, arena y grava); 1-9 y rueda eligen ranura; **clic izquierdo mantenido** mina (barra de progreso bajo la mira); clic derecho coloca el bloque de la ranura (consume 1) y sobre una mesa de crafteo abre la 3x3; **E** abre/cierra el inventario 2x2 (con la pantalla abierta el jugador queda quieto; Esc abre el menú de pausa de GTA, no cierra la pantalla). Inventario en `mcsurvival.dat` (junto a `mcworld.dat`, global).
+
+**Código nuevo.** Rust: `lib.rs` (API C), `survival.rs`, `world.rs` (World sobre callbacks), `catalog.rs` (dureza y herramientas de vanilla generadas), `names.rs`, `coords.rs`. C++ core (con tests): `McItemTable` (57 items, ids 1..29 bloques; 1..4 conservan el valor histórico), `McStarterPatch`, `McInventoryLayout`. C++ game: `McSurvival` (namespace `McSurv`, porque el struct C `McSurvival` ocupa ese nombre), `McInventoryUI`; `McHotbar`, `McInteract`, `McMode` ramifican por `McSurv::IsReady()`. El atlas pasó a 8x8 (tile = id de item).
+
+**Límites conocidos de esta fase.** Sin horno funcional (no se pueden fundir lingotes: el hierro solo se fabrica si se tienen) ni antorcha; sin items en el suelo (los drops van al inventario; si no caben o el item no está en la tabla se pierden con un aviso en el log); recetas con resultados fuera de los 57 items quedan ocultas (escaleras, puertas, cofres...); el inventario solo se autoguarda cuando cambia el mundo (si solo fabricas, se guarda al salir); un pánico a mitad de `mine` puede dejar el bloque roto sin drops (se captura, no cruza a C++). Los textos de cantidad se dibujan en la cola de fuentes de GTA, por encima de los iconos.
+
+**Sin probar en el juego.** Todo compila, enlaza y pasa tests (`mctests` 146, `cargo test` 32), pero ningún cambio de las tareas 2 a 5 se ha visto en ejecución. Primer recorrido manual a hacer: F8, F9, minar el tronco con la mano (lento), fabricar tablones/mesa/palos/pico (E y mesa 3x3), minar piedra con el pico (debe soltar adoquín y desgastar la herramienta), colocar bloques, salir y volver (persistencia), y comprobar que las 4 texturas clásicas se ven como antes.
+
+**Siguientes fases** (hoja de ruta en la sección 11 del spec): movimiento Minecraft con la física de `Player::tick`, combate con daño escalado, cavar el mundo de GTA, IA que esquiva bloques, mundos por partida, generación de terreno.

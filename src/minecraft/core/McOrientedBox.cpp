@@ -114,4 +114,34 @@ BoxPush PushBoxOutOfBlocks(const World &w, OrientedBox &b)
 	return res;
 }
 
+SweepResult SweepBox(const World &w, const OrientedBox &from, float dx, float dy, float dz)
+{
+	SweepResult res = { false, from.x + dx, from.y + dy, dz };
+	if(BoxOverlapsBlocks(w, from))
+		return res;
+	float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+	int steps = (int)ceilf(dist / 0.4f);
+	if(steps < 1)
+		return res;
+	if(steps > 1000)
+		steps = 1000;
+	for(int i = 1; i <= steps; i++){
+		float t = (float)i / (float)steps;
+		OrientedBox b = from;
+		b.x += dx * t;
+		b.y += dy * t;
+		b.zBottom += dz * t;
+		b.zTop += dz * t;
+		if(BoxOverlapsBlocks(w, b)){
+			float p = (float)(i - 1) / (float)steps;
+			res.blocked = true;
+			res.x = from.x + dx * p;
+			res.y = from.y + dy * p;
+			res.dz = dz * p;
+			return res;
+		}
+	}
+	return res;
+}
+
 }

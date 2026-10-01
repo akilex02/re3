@@ -23,4 +23,12 @@ bool BoxOverlapsBlocks(const World &w, const OrientedBox &b);
 // Pushes the box out along the axis of minimal penetration, at most 8 iterations.
 BoxPush PushBoxOutOfBlocks(const World &w, OrientedBox &b);
 
+struct SweepResult {
+	bool blocked;
+	float x, y, dz;	// last free centre and the vertical shift applied
+};
+
+// Moves the box by (dx,dy,dz) in steps of at most 0.4 and stops before the first overlap.
+SweepResult SweepBox(const World &w, const OrientedBox &from, float dx, float dy, float dz);
+
 }

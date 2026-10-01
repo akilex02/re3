@@ -5,6 +5,7 @@
 #include "main.h"
 #include "McRenderer.h"
 #include "McMesher.h"
+#include "McAtlas.h"
 #include <unordered_map>
 #include <vector>
 
@@ -14,6 +15,8 @@ static std::vector<RwIm3DVertex> vertexBuffer;
 static std::vector<RwImVertexIndex> indexBuffer;
 static std::vector<Mc::McVertex> batchVerts;
 static std::vector<uint16_t> batchIdx;
+static uint32 lastGeneration;
+static RwTexture *lastTexture;
 
 namespace McRenderer
 {
@@ -53,11 +56,20 @@ Render(Mc::World &world)
 		else
 			++it;
 	}
+	// a new, changed or lost atlas texture means every chunk must be meshed again (flat colours or UVs)
+	RwTexture *texture = McAtlas::GetTexture();
+	if(McAtlas::Generation() != lastGeneration || texture != lastTexture){
+		lastGeneration = McAtlas::Generation();
+		lastTexture = texture;
+		world.MarkAllDirty();
+		meshes.clear();
+	}
+	bool textured = texture != nil;
 	// rebuild dirty chunks
 	for(Mc::World::ChunkMap::const_iterator it = world.Chunks().begin(); it != world.Chunks().end(); ++it){
 		Mc::Chunk *c = it->second;
 		if(c->dirty || meshes.find(it->first) == meshes.end()){
-			Mc::MeshChunk(world, it->first, false, meshes[it->first]);
+			Mc::MeshChunk(world, it->first, textured, meshes[it->first]);
 			c->dirty = false;
 		}
 	}
@@ -66,8 +78,12 @@ Render(Mc::World &world)
 
 	// remember the render state so the rest of the frame is unaffected
 	void *prevRaster;
+	uint32 prevFilter, prevAddressU, prevAddressV;
 	uint32 prevCull, prevFog, prevZWrite, prevZTest, prevVertexAlpha, prevSrcBlend, prevDestBlend;
 	RwRenderStateGet(rwRENDERSTATETEXTURERASTER, &prevRaster);
+	RwRenderStateGet(rwRENDERSTATETEXTUREFILTER, &prevFilter);
+	RwRenderStateGet(rwRENDERSTATETEXTUREADDRESSU, &prevAddressU);
+	RwRenderStateGet(rwRENDERSTATETEXTUREADDRESSV, &prevAddressV);
 	RwRenderStateGet(rwRENDERSTATECULLMODE, &prevCull);
 	RwRenderStateGet(rwRENDERSTATEFOGENABLE, &prevFog);
 	RwRenderStateGet(rwRENDERSTATEZWRITEENABLE, &prevZWrite);
@@ -76,7 +92,13 @@ Render(Mc::World &world)
 	RwRenderStateGet(rwRENDERSTATESRCBLEND, &prevSrcBlend);
 	RwRenderStateGet(rwRENDERSTATEDESTBLEND, &prevDestBlend);
 
-	RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nil);
+	// binding through the raster state ignores the texture's own filter and addressing, so set them here
+	if(texture != nil){
+		RwRenderStateSet(rwRENDERSTATETEXTURERASTER, RwTextureGetRaster(texture));
+		RwRenderStateSet(rwRENDERSTATETEXTUREFILTER, (void*)rwFILTERNEAREST);
+		RwRenderStateSet(rwRENDERSTATETEXTUREADDRESS, (void*)rwTEXTUREADDRESSCLAMP);
+	}else
+		RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nil);
 	RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)TRUE);
 	RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)TRUE);
 	RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)TRUE);
@@ -89,6 +111,9 @@ Render(Mc::World &world)
 		DrawMesh(it->second);
 
 	RwRenderStateSet(rwRENDERSTATETEXTURERASTER, prevRaster);
+	RwRenderStateSet(rwRENDERSTATETEXTUREFILTER, (void*)(uintptr)prevFilter);
+	RwRenderStateSet(rwRENDERSTATETEXTUREADDRESSU, (void*)(uintptr)prevAddressU);
+	RwRenderStateSet(rwRENDERSTATETEXTUREADDRESSV, (void*)(uintptr)prevAddressV);
 	RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)(uintptr)prevZTest);
 	RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)(uintptr)prevZWrite);
 	RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)(uintptr)prevVertexAlpha);

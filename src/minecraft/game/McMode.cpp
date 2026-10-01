@@ -10,6 +10,7 @@
 #include "World.h"
 #include "McMode.h"
 #include "McRenderer.h"
+#include "McAtlas.h"
 #include "McInteract.h"
 #include "McCollide.h"
 #include "McEntities.h"
@@ -82,6 +83,7 @@ Init(void)
 		printf("McMode: loaded %s (%d chunks)\n", saveFile, (int)world.ChunkCount());
 	savedRevision = world.Revision();
 	lastSaveTime = CTimer::GetTimeInMilliseconds();
+	McAtlas::Init();
 }
 
 void
@@ -92,6 +94,7 @@ Shutdown(void)
 		if(!SaveWorld())
 			printf("McMode: failed to save %s\n", saveFile);
 	world.Clear();
+	McAtlas::Shutdown();
 	McRenderer::Shutdown();
 	active = false;
 }
@@ -99,6 +102,8 @@ Shutdown(void)
 void
 Update(void)
 {
+	McAtlas::Update();
+
 	if(CPad::GetPad(0)->GetFJustDown(toggleKey)){
 		active = !active;
 		printf("McMode: Steve mode %s\n", active ? "ON" : "OFF");

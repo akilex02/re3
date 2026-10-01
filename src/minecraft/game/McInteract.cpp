@@ -7,6 +7,7 @@
 #include "Ped.h"
 #include "PlayerPed.h"
 #include "PlayerInfo.h"
+#include "Vehicle.h"
 #include "World.h"
 #include "Collision.h"
 #include "McInteract.h"
@@ -18,12 +19,33 @@ namespace McInteract
 {
 
 // Distance from the camera to the nearest GTA geometry along the same ray, or reach+1 if none.
+// The player's own body (ped, and vehicle when driving) is ignored.
 static float
 GtaHitDistance(const CVector &from, const CVector &to)
 {
 	CColPoint colPoint;
 	CEntity *entity = nil;
-	if(CWorld::ProcessLineOfSight(from, to, colPoint, entity, true, true, true, true, false, true))
+	CPlayerPed *ped = FindPlayerPed();
+	CVehicle *veh = FindPlayerVehicle();
+	CEntity *prevIgnore = CWorld::pIgnoreEntity;
+	bool savedPedCollision = false;
+
+	if(veh){
+		CWorld::pIgnoreEntity = veh;
+		if(ped){
+			savedPedCollision = ped->bUsesCollision;
+			ped->bUsesCollision = false;
+		}
+	}else
+		CWorld::pIgnoreEntity = ped;
+
+	bool found = CWorld::ProcessLineOfSight(from, to, colPoint, entity, true, true, true, true, false, true);
+
+	CWorld::pIgnoreEntity = prevIgnore;
+	if(veh && ped)
+		ped->bUsesCollision = savedPedCollision;
+
+	if(found)
 		return (colPoint.point - from).Magnitude();
 	return reach + 1.0f;
 }
@@ -63,9 +85,8 @@ Update(Mc::World &world)
 	}else if(CanPlace(hit)){
 		int px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
 		// do not place inside the player's own body
-		CVector feet = FindPlayerCoors();
-		bool insidePlayer = px == (int)floorf(feet.x) && py == (int)floorf(feet.y) &&
-			(pz == (int)floorf(feet.z) || pz == (int)floorf(feet.z + 1.0f));
+		CVector body = FindPlayerCoors();
+		bool insidePlayer = BodyOverlapsCell(body.x, body.y, body.z, px, py, pz);
 		if(!insidePlayer)
 			world.Set(px, py, pz, selected);
 	}

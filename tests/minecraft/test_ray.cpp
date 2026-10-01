@@ -147,3 +147,32 @@ MC_TEST(interact_cannot_place_when_ray_starts_inside_block)
 	RayHit face = RayCast(w, 2.5f, 0.5f, 0.5f, 1, 0, 0, 10);
 	MC_CHECK(McInteract::CanPlace(face));
 }
+
+MC_TEST(body_overlaps_cell_containing_feet)
+{
+	MC_CHECK(McInteract::BodyOverlapsCell(0.5f, 0.5f, 6.5f, 0, 0, 5));
+}
+
+MC_TEST(body_does_not_overlap_cell_below_feet)
+{
+	// feet at exactly z=5.0
+	MC_CHECK(!McInteract::BodyOverlapsCell(0.5f, 0.5f, 6.0f, 0, 0, 4));
+	MC_CHECK(McInteract::BodyOverlapsCell(0.5f, 0.5f, 6.0f, 0, 0, 5));
+}
+
+MC_TEST(body_straddling_boundary_overlaps_both_cells)
+{
+	MC_CHECK(McInteract::BodyOverlapsCell(0.9f, 0.5f, 5.5f, 1, 0, 5));
+	MC_CHECK(McInteract::BodyOverlapsCell(0.9f, 0.5f, 5.5f, 0, 0, 5));
+}
+
+MC_TEST(body_does_not_overlap_far_cell)
+{
+	MC_CHECK(!McInteract::BodyOverlapsCell(0.5f, 0.5f, 5.5f, 2, 0, 5));
+}
+
+MC_TEST(body_does_not_overlap_cell_above_head)
+{
+	// head at exactly z=5.0
+	MC_CHECK(!McInteract::BodyOverlapsCell(0.5f, 0.5f, 4.2f, 0, 0, 5));
+}

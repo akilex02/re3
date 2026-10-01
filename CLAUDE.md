@@ -23,7 +23,7 @@ Several build systems coexist. On Linux use CMake or premake:
 
 `src/CMakeLists.txt` globs all `*.cpp`/`*.h` recursively and adds every directory under `src/` to the include path, so new files need no build-file edits and headers are included by bare name (`#include "Ped.h"`).
 
-Submodules (`vendor/librw`, opus, ogg, opusfile) must be checked out (`git clone --recursive` or `git submodule update --init`). `vendor/librw` is currently empty in this checkout. Do not edit `vendor/`.
+Submodules (`vendor/librw`, opus, ogg, opusfile) must be checked out (`git clone --recursive` or `git submodule update --init`). In the author's checkout `vendor/librw` is populated and the Ninja build in `build/` works. Do not edit `vendor/`.
 
 ## Architecture
 
@@ -33,6 +33,16 @@ Submodules (`vendor/librw`, opus, ogg, opusfile) must be checked out (`git clone
 - **Platform skeleton**: `src/skel/` is the cross-platform layer (window, input events, main entry). `skel/glfw` and `skel/win` are the backends; `crossplatform.cpp` supplies POSIX replacements for Win32 calls. Platform-specific code goes here, not in game code.
 - **Audio**: `src/audio/` has the game-side audio logic (`AudioManager`, `AudioScriptObject`, sample/cutscene data) over a sample-manager backend selected at build time: `sampman_oal.cpp` + `audio/oal` (OpenAL, default), `sampman_miles.cpp` (Miles Sound System, `vendor/milessdk`, Windows), or `sampman_null.cpp`.
 - `src/extras/`: re3-specific additions not in the original game (custom render pipelines per backend: `custompipes*.cpp`).
+
+## Minecraft mode (branch `minecraft-mode`, fork project)
+
+This branch adds a "Steve mode" to re3 (voxel blocks in the GTA III world, F8 toggles it). **Start from `docs/minecraft/HANDOFF.md`**: it has the build/test/run commands, the code map (`src/minecraft/core` for pure code with tests in `tests/minecraft`, `src/minecraft/game` for the re3 side), the known limitations and the prioritised list of remaining work. Specs and plans are in `docs/superpowers/specs` and `docs/superpowers/plans`.
+
+Rules that matter when working on it:
+- Everything lives in `src/minecraft` behind `#ifdef MINECRAFT_MODE` (CMake option `RE3_MINECRAFT_MODE`, not `config.h`). Rockstar files only get one-line guarded hooks (`Game.cpp`, `main.cpp`).
+- Core code uses only the standard library and is unit-tested outside the game: `cmake -S tests/minecraft -B build/mctest && cmake --build build/mctest -j && build/mctest/mctests`.
+- Game files for manual testing are outside the repo: run `cd "/mnt/1TB/Juegos/GTAs/0. GTA III/0. TEST" && /home/akilex/Descargas/gtas/re3/build/src/re3`. Do not overwrite the user's own `re3` binary there. Downloaded Mojang textures go to `mcassets/` next to the game and are never committed.
+- librw's GL3 `setAddressU/V` has an inverted condition (vendor bug, do not edit): set texture filter/address with no raster bound. `rw::readPNG` asserts on a missing file: check existence first.
 
 ## Conventions (from `CODING_STYLE.md` and the PR template)
 

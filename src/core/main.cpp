@@ -74,9 +74,9 @@
 #include "MemoryHeap.h"
 #ifdef USE_OUR_VERSIONING
 #include "GitSHA1.h"
+#endif
 #ifdef MINECRAFT_MODE
 #include "McMode.h"
-#endif
 #endif
 
 GlobalScene Scene;

@@ -178,7 +178,7 @@ Download(uint32 session)
 	if(!Mc::IsAllowedMojangUrl(manifestUrl))
 		return Fail("manifest", "manifest URL rejected");
 	printf("McAtlas: downloading version manifest\n");
-	cmd = std::string("curl -fsSL --connect-timeout 10 --max-time 60 -o \"") + manifestFile + "\" \"" + manifestUrl + "\"";
+	cmd = std::string("curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 60 -o \"") + manifestFile + "\" \"" + manifestUrl + "\"";
 	status = RunCommand(cmd);
 	if(status != 0)
 		return FailCommand("manifest", "curl", status);
@@ -195,7 +195,7 @@ Download(uint32 session)
 	if(!Mc::IsAllowedMojangUrl(url))
 		return Fail("version url", "URL rejected");
 	printf("McAtlas: latest release %s, downloading version info\n", PrintableId(id));
-	cmd = std::string("curl -fsSL --connect-timeout 10 --max-time 60 -o \"") + versionFile + "\" \"" + url + "\"";
+	cmd = std::string("curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 60 -o \"") + versionFile + "\" \"" + url + "\"";
 	status = RunCommand(cmd);
 	if(status != 0)
 		return FailCommand("version json", "curl", status);
@@ -210,7 +210,7 @@ Download(uint32 session)
 	if(!Mc::IsAllowedMojangUrl(url))
 		return Fail("client url", "URL rejected");
 	printf("McAtlas: downloading client jar\n");
-	cmd = std::string("curl -fsSL --connect-timeout 10 --max-time 120 -o \"") + jarFile + "\" \"" + url + "\"";
+	cmd = std::string("curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 120 -o \"") + jarFile + "\" \"" + url + "\"";
 	status = RunCommand(cmd);
 	if(status != 0)
 		return FailCommand("client jar", "curl", status);
@@ -224,8 +224,17 @@ Download(uint32 session)
 		cmd += std::string(" \"") + jarTextureDir + Mc::BlockTextureFile(atlasBlocks[i]) + "\"";
 	cmd += std::string(" -d \"") + assetDir + "\"";
 	status = RunCommand(cmd);
+	// decide by the files: unzip returns 1 for warnings and 11 when a named entry is missing
+	for(int i = 0; i < numAtlasBlocks; i++){
+		std::string path = std::string(assetDir) + "/" + Mc::BlockTextureFile(atlasBlocks[i]);
+		if(FileSize(path.c_str()) <= 0){
+			printf("McAtlas: download failed at step 'extract textures' (unzip returned %d, %s missing); using flat colours\n",
+				status, path.c_str());
+			return false;
+		}
+	}
 	if(status != 0)
-		return FailCommand("extract textures", "unzip", status);
+		printf("McAtlas: note: unzip returned %d but all block textures were extracted\n", status);
 	return true;
 }
 
@@ -364,9 +373,17 @@ LoadAtlas(void)
 
 	int numValid = 0;
 	bool loggedCrop = false;
-	for(int i = 0; i < numAtlasBlocks; i++)
-		if(LoadTile(atlasBlocks[i], tiles[atlasBlocks[i]], loggedCrop))
+	for(int i = 0; i < numAtlasBlocks; i++){
+		if(LoadTile(atlasBlocks[i], tiles[atlasBlocks[i]], loggedCrop)){
 			numValid++;
+			continue;
+		}
+		// a file that exists but cannot be used is removed so that the next launch downloads it again
+		const char *file = Mc::BlockTextureFile(atlasBlocks[i]);
+		std::string path = std::string(assetDir) + "/" + file;
+		if(FileSize(path.c_str()) >= 0 && remove(path.c_str()) == 0)
+			printf("McAtlas: removed broken cached texture %s; it will be downloaded again at the next launch\n", file);
+	}
 	if(numValid == 0){
 		printf("McAtlas: no usable block texture; using flat colours\n");
 		return;
@@ -394,6 +411,8 @@ Init(void)
 	currentSession = ++sessionCounter;
 
 	if(CacheComplete()){
+		// leftovers of a download whose curl or unzip finished after the game had quit
+		RemoveTemporaryFiles();
 		LoadAtlas();
 		return;
 	}

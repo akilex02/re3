@@ -14,6 +14,8 @@ namespace McAtlas
 	// The atlas texture (64x64, 4x4 tiles of 16x16, tile index = block id), or nil until ready.
 	RwTexture *GetTexture(void);
 	// 0 until the first atlas exists; incremented each time a new atlas texture becomes available.
+	// Generation() only increments when a new texture is created; callers must also check GetTexture() for nil
+	// (after Shutdown or a failed Init the texture is nil but Generation is unchanged).
 	uint32 Generation(void);
 	// Stops a running download at its next step (never waits for it) and releases the texture.
 	void Shutdown(void);

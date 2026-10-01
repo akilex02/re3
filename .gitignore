@@ -365,3 +365,5 @@ mcassets/
 
 # Local SDD/agent workspace
 .superpowers/
+src/minecraft/rust/mc_bridge/minecraftoss
+src/minecraft/rust/mc_bridge/target

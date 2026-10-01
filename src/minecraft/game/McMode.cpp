@@ -16,6 +16,9 @@
 #include "McCollide.h"
 #include "McEntities.h"
 #include "McHotbar.h"
+#ifdef MINECRAFT_SURVIVAL
+#include "mc_bridge.h"
+#endif
 
 static const char *saveFile = "mcworld.dat";
 static const int toggleKey = 7;	// F8, zero based
@@ -86,6 +89,9 @@ Init(void)
 	savedRevision = world.Revision();
 	lastSaveTime = CTimer::GetTimeInMilliseconds();
 	McAtlas::Init();
+#ifdef MINECRAFT_SURVIVAL
+	printf("McMode: survival bridge %s\n", mc_bridge_version());
+#endif
 }
 
 void

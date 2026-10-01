@@ -21,6 +21,9 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/extras/GitSHA1.cpp.in" "${CMAKE_CURR
 list(APPEND ${PROJECT}_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/extras/GitSHA1.cpp")
 
 option(${PROJECT}_MINECRAFT_MODE "Steve mode: voxel blocks in the GTA world (src/minecraft)" ON)
+option(${PROJECT}_MINECRAFT_SURVIVAL "Survival core backed by MinecraftOSS (needs cargo)" ON)
+set(${PROJECT}_MINECRAFTOSS_DIR "${CMAKE_SOURCE_DIR}/../2010-rust-rewrite-mashup-main/third_party/minecraftoss"
+	CACHE PATH "MinecraftOSS checkout (needs player/Cargo.toml)")
 
 add_executable(${EXECUTABLE} WIN32
     ${${PROJECT}_SOURCES}
@@ -28,6 +31,25 @@ add_executable(${EXECUTABLE} WIN32
 
 if(${PROJECT}_MINECRAFT_MODE)
     target_compile_definitions(${EXECUTABLE} PRIVATE MINECRAFT_MODE)
+endif()
+
+set(MC_BRIDGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/minecraft/rust/mc_bridge")
+find_program(MC_CARGO cargo)
+if(${PROJECT}_MINECRAFT_MODE AND ${PROJECT}_MINECRAFT_SURVIVAL AND MC_CARGO
+		AND EXISTS "${${PROJECT}_MINECRAFTOSS_DIR}/player/Cargo.toml")
+	file(CREATE_LINK "${${PROJECT}_MINECRAFTOSS_DIR}" "${MC_BRIDGE_DIR}/minecraftoss" SYMBOLIC)
+	set(MC_BRIDGE_LIB "${CMAKE_BINARY_DIR}/mc_bridge/release/libmc_bridge.a")
+	add_custom_target(mc_bridge_rust ALL
+		COMMAND ${MC_CARGO} build --release --manifest-path "${MC_BRIDGE_DIR}/Cargo.toml"
+			--target-dir "${CMAKE_BINARY_DIR}/mc_bridge"
+		BYPRODUCTS "${MC_BRIDGE_LIB}"
+		COMMENT "Building the MinecraftOSS survival bridge")
+	add_dependencies(${EXECUTABLE} mc_bridge_rust)
+	target_compile_definitions(${EXECUTABLE} PRIVATE MINECRAFT_SURVIVAL)
+	target_include_directories(${EXECUTABLE} PRIVATE "${MC_BRIDGE_DIR}/..")
+	target_link_libraries(${EXECUTABLE} PRIVATE "${MC_BRIDGE_LIB}" ${CMAKE_DL_LIBS} m)
+elseif(${PROJECT}_MINECRAFT_MODE AND ${PROJECT}_MINECRAFT_SURVIVAL)
+	message(STATUS "Minecraft survival disabled: cargo or MinecraftOSS (${${PROJECT}_MINECRAFTOSS_DIR}) not found")
 endif()
 
 target_link_libraries(${EXECUTABLE} PRIVATE

@@ -1,0 +1,15 @@
+[package]
+name = "mc_bridge"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+minecraftoss-player = { path = "minecraftoss/player" }
+glam = "0.29"
+serde_json = "1"
+
+[workspace]

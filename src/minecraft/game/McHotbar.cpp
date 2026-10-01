@@ -10,6 +10,8 @@
 #include "McAtlas.h"
 #include "McInteract.h"
 #include "McHotbar.h"
+#include "McItemTable.h"
+#include "McSurvival.h"
 
 static const float iconInset = 0.12f;	// fraction of the slot left empty on each side of the icon
 
@@ -42,9 +44,130 @@ DrawIcon(uint8 id, const CRect &rect, RwTexture *atlas)
 	}
 }
 
+// "minecraft:oak_planks" -> "oak planks"
+static void
+DisplayName(const char *id, char *out, size_t size)
+{
+	const char *p = strchr(id, ':');
+	p = p ? p + 1 : id;
+	size_t n = 0;
+	for(; *p && n + 1 < size; p++)
+		out[n++] = *p == '_' ? ' ' : *p;
+	out[n] = '\0';
+}
+
+static void
+SetTextStyle(float scaleX, float scaleY)
+{
+	CFont::SetBackgroundOff();
+	CFont::SetScale(SCREEN_SCALE_X(scaleX), SCREEN_SCALE_Y(scaleY));
+	CFont::SetJustifyOff();
+	CFont::SetRightJustifyOff();
+	CFont::SetCentreOff();
+	CFont::SetPropOn();
+	CFont::SetFontStyle(FONT_BANK);
+	CFont::SetDropShadowPosition(1);
+	CFont::SetDropColor(CRGBA(0, 0, 0, 255));
+	CFont::SetColor(CRGBA(255, 255, 255, 255));
+}
+
+// Survival hotbar: the nine inventory slots with stack counts and tool wear bars, plus the mining progress bar.
+static void
+DrawSurvival(void)
+{
+	const int count = McSurv::HOTBAR_SLOTS;
+	RwTexture *atlas = McAtlas::GetTexture();
+	float frame = SCREEN_SCALE_Y(2.0f);
+	float barBottom = 0.0f;
+	int selectedSlot = McSurv::SelectedSlot();
+	McSurv::Slot selectedItem;
+	selectedItem.item = 0;
+
+	Set2dStates();
+	for(int i = 0; i < count; i++){
+		bool selected = i == selectedSlot;
+		Mc::HotbarSlot s = Mc::HotbarSlotRect(i, count, SCREEN_WIDTH, SCREEN_HEIGHT, selected);
+		if(s.w <= 0.0f)
+			continue;
+		if(s.y + s.h > barBottom)
+			barBottom = s.y + s.h;
+
+		CSprite2d::DrawRect(CRect(s.x, s.y, s.x + s.w, s.y + s.h), CRGBA(0, 0, 0, 150));
+		McSurv::Slot slot;
+		if(McSurv::GetSlot(McSurv::AREA_INV, i, slot)){
+			if(selected)
+				selectedItem = slot;
+			float inset = s.w * iconInset;
+			DrawIcon((uint8)slot.item, CRect(s.x + inset, s.y + inset, s.x + s.w - inset, s.y + s.h - inset), atlas);
+			if(slot.maxDamage > 0 && slot.damage > 0){
+				// wear bar along the bottom edge: green when new, red when about to break
+				float left = 1.0f - (float)slot.damage / (float)slot.maxDamage;
+				if(left < 0.0f) left = 0.0f;
+				float bh = SCREEN_SCALE_Y(3.0f);
+				float by = s.y + s.h - bh - SCREEN_SCALE_Y(2.0f);
+				float bx = s.x + s.w * 0.1f;
+				float bw = s.w * 0.8f;
+				CSprite2d::DrawRect(CRect(bx, by, bx + bw, by + bh), CRGBA(0, 0, 0, 255));
+				CSprite2d::DrawRect(CRect(bx, by, bx + bw * left, by + bh), CRGBA((uint8)(255.0f * (1.0f - left)), (uint8)(255.0f * left), 0, 255));
+			}
+		}
+		if(selected){
+			CRGBA white(255, 255, 255, 255);
+			CSprite2d::DrawRect(CRect(s.x, s.y, s.x + s.w, s.y + frame), white);
+			CSprite2d::DrawRect(CRect(s.x, s.y + s.h - frame, s.x + s.w, s.y + s.h), white);
+			CSprite2d::DrawRect(CRect(s.x, s.y + frame, s.x + frame, s.y + s.h - frame), white);
+			CSprite2d::DrawRect(CRect(s.x + s.w - frame, s.y + frame, s.x + s.w, s.y + s.h - frame), white);
+		}
+	}
+
+	// stack counts (drawn after the sprites so the text is not covered by the next slot)
+	for(int i = 0; i < count; i++){
+		McSurv::Slot slot;
+		if(!McSurv::GetSlot(McSurv::AREA_INV, i, slot) || slot.count <= 1)
+			continue;
+		Mc::HotbarSlot s = Mc::HotbarSlotRect(i, count, SCREEN_WIDTH, SCREEN_HEIGHT, i == selectedSlot);
+		char text[16];
+		sprintf(text, "%d", slot.count);
+		AsciiToUnicode(text, gUString);
+		SetTextStyle(0.35f, 0.55f);
+		float w = CFont::GetStringWidth(gUString, true);
+		CFont::PrintString(s.x + s.w - w - SCREEN_SCALE_X(2.0f), s.y + s.h - SCREEN_SCALE_Y(14.0f), gUString);
+		CFont::SetDropShadowPosition(0);
+	}
+
+	// name of the selected item under the bar
+	if(selectedItem.item != 0){
+		char name[64];
+		DisplayName(Mc::GetItemInfo((uint8_t)selectedItem.item).name, name, sizeof(name));
+		AsciiToUnicode(name, gUString);
+		SetTextStyle(0.4f, 0.6f);
+		CFont::SetCentreOn();
+		CFont::SetCentreSize(SCREEN_WIDTH);
+		CFont::PrintString(SCREEN_WIDTH / 2.0f, barBottom + SCREEN_SCALE_Y(2.0f), gUString);
+		CFont::SetDropShadowPosition(0);
+	}
+
+	// mining progress under the crosshair
+	float progress = McSurv::MineProgress();
+	if(progress > 0.0f){
+		if(progress > 1.0f) progress = 1.0f;
+		float w = SCREEN_SCALE_X(90.0f), h = SCREEN_SCALE_Y(5.0f);
+		float x = SCREEN_WIDTH / 2.0f - w / 2.0f, y = SCREEN_HEIGHT * 0.58f;
+		CSprite2d::DrawRect(CRect(x - 1.0f, y - 1.0f, x + w + 1.0f, y + h + 1.0f), CRGBA(0, 0, 0, 200));
+		CSprite2d::DrawRect(CRect(x, y, x + w * progress, y + h), CRGBA(255, 255, 255, 230));
+	}
+
+	Set2dStates();
+	RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nil);
+}
+
 void
 McHotbar::Draw(void)
 {
+	if(McSurv::IsReady()){
+		DrawSurvival();
+		return;
+	}
 	int count = Mc::HotbarCount();
 	uint8 selectedBlock = McInteract::GetSelectedBlock();
 	RwTexture *atlas = McAtlas::GetTexture();

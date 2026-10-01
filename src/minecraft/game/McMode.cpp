@@ -16,12 +16,15 @@
 #include "McCollide.h"
 #include "McEntities.h"
 #include "McHotbar.h"
+#include "McSurvival.h"
+#include "McStarterPatch.h"
 #ifdef MINECRAFT_SURVIVAL
 #include "mc_bridge.h"
 #endif
 
 static const char *saveFile = "mcworld.dat";
 static const int toggleKey = 7;	// F8, zero based
+static const int patchKey = 8;	// F9, zero based: builds the survival starter patch
 
 static Mc::World world;
 static bool active;
@@ -38,6 +41,7 @@ SaveWorld(void)
 		return false;
 	savedRevision = world.Revision();
 	lastSaveTime = CTimer::GetTimeInMilliseconds();
+	McSurv::Save();
 	return true;
 }
 
@@ -101,6 +105,7 @@ Shutdown(void)
 	if(world.Revision() != savedRevision)
 		if(!SaveWorld())
 			printf("McMode: failed to save %s\n", saveFile);
+	McSurv::Shutdown();
 	world.Clear();
 	McAtlas::Shutdown();
 	McRenderer::Shutdown();
@@ -111,6 +116,7 @@ void
 Update(void)
 {
 	McAtlas::Update();
+	McSurv::Update();
 
 	if(CPad::GetPad(0)->GetFJustDown(toggleKey)){
 		active = !active;
@@ -119,6 +125,14 @@ Update(void)
 
 	if(active)
 		McInteract::Update(world);
+
+	if(active && CPad::GetPad(0)->GetFJustDown(patchKey) && McInteract::CanInteract()){
+		CPlayerPed *player = FindPlayerPed();
+		CVector p = player->GetPosition();
+		// three blocks ahead on the diagonal so it never overlaps the player's own body
+		Mc::BuildStarterPatch(world, (int)floorf(p.x) + 3, (int)floorf(p.y) + 3, (int)floorf(p.z - McInteract::bodyFeetOffset));
+		printf("McMode: starter patch built\n");
+	}
 
 	if(world.Revision() != savedRevision && CTimer::GetTimeInMilliseconds() - lastSaveTime >= autosaveInterval){
 		if(SaveWorld())

@@ -15,8 +15,11 @@
 #include "Replay.h"
 #include "McInteract.h"
 #include "McHotbarLayout.h"
+#include "McItemTable.h"
+#include "McSurvival.h"
 
 static const float reach = 6.0f;
+static const float survivalReach = 5.0f;	// MinecraftOSS mining reach
 static uint8 selected = Mc::BLOCK_STONE;
 
 namespace McInteract
@@ -92,26 +95,42 @@ Update(Mc::World &world)
 		return;
 	CPlayerPed *player = FindPlayerPed();
 
+	bool survival = McSurv::IsReady();
 	bool wheelUp = pad->GetMouseWheelUpJustDown();
 	bool wheelDown = pad->GetMouseWheelDownJustDown();
-	if(wheelUp || wheelDown){
-		int n = Mc::CLASSIC_BLOCKS;	// selectable: 1..CLASSIC_BLOCKS
-		int i = selected - 1;
-		i += wheelUp ? 1 : -1;
-		i = (i % n + n) % n;
-		SetSelectedBlock((uint8)(i + 1));
-	}
+	if(survival){
+		// survival: the nine inventory hotbar slots
+		if(wheelUp || wheelDown){
+			int n = McSurv::HOTBAR_SLOTS;
+			McSurv::SetSelectedSlot((McSurv::SelectedSlot() + (wheelUp ? 1 : -1) + n) % n);
+		}
+		for(int k = 0; k < McSurv::HOTBAR_SLOTS; k++)
+			if(pad->GetCharJustDown('1' + k))
+				McSurv::SetSelectedSlot(k);
+	}else{
+		if(wheelUp || wheelDown){
+			int n = Mc::CLASSIC_BLOCKS;	// selectable: 1..CLASSIC_BLOCKS
+			int i = selected - 1;
+			i += wheelUp ? 1 : -1;
+			i = (i % n + n) % n;
+			SetSelectedBlock((uint8)(i + 1));
+		}
 
-	// number keys 1.. pick a hotbar slot (just pressed, not held)
-	int keys = Mc::HotbarCount() < 9 ? Mc::HotbarCount() : 9;
-	for(int k = 0; k < keys; k++)
-		if(pad->GetCharJustDown('1' + k))
-			SetSelectedBlock(Mc::HotbarBlock(k));
+		// number keys 1.. pick a hotbar slot (just pressed, not held)
+		int keys = Mc::HotbarCount() < 9 ? Mc::HotbarCount() : 9;
+		for(int k = 0; k < keys; k++)
+			if(pad->GetCharJustDown('1' + k))
+				SetSelectedBlock(Mc::HotbarBlock(k));
+	}
 
 	bool breakBlock = pad->GetLeftMouseJustDown();
 	bool placeBlock = pad->GetRightMouseJustDown();
-	if(!breakBlock && !placeBlock)
+	// survival mining needs the button held; every other interaction is a click
+	bool mineHeld = survival && pad->GetLeftMouse();
+	if(!breakBlock && !placeBlock && !mineHeld){
+		McSurv::StopMining();
 		return;
+	}
 
 	// The third-person camera can be outside the player's own walls, so the ray starts at the point
 	// of the camera ray nearest the player's head (head is about 0.7 above the ped origin).
@@ -127,7 +146,19 @@ Update(Mc::World &world)
 	float gtaDist = GtaHit(origin, origin + dir * reach, gtaEntity, gtaPoint, gtaNormal);
 	bool gtaNearest = gtaEntity != nil && (!hit.hit || gtaDist < hit.t);
 
-	if(breakBlock){
+	if(survival){
+		// the survival core re-casts the ray itself with a reach of 5, so only mine what the voxel ray hit first
+		bool mining = mineHeld && !gtaNearest && hit.hit && hit.t <= survivalReach;
+		double eye[3] = { origin.x, origin.y, origin.z };
+		double d[3] = { dir.x, dir.y, dir.z };
+		McSurv::Mine(world, eye, d, mining, !player->bIsInTheAir);
+		if(breakBlock && gtaNearest && gtaEntity->IsPed()){
+			CPed *ped = (CPed*)gtaEntity;
+			ped->InflictDamage(player, WEAPONTYPE_BASEBALLBAT, 10.0f, PEDPIECE_TORSO, 0);
+		}
+		if(!placeBlock)
+			return;
+	}else if(breakBlock){
 		if(gtaNearest){
 			// breaking never affects GTA geometry, only peds can be hit
 			if(gtaEntity->IsPed()){
@@ -176,8 +207,19 @@ Update(Mc::World &world)
 		printf("McInteract: nothing placed, blocked by player\n");
 		return;
 	}
-	world.Set(px, py, pz, selected);
-	printf("McInteract: placed %s at (%d,%d,%d) [%s]\n", Mc::GetBlockInfo(selected).name, px, py, pz, kind);
+	uint8 placeId = selected;
+	if(survival){
+		McSurv::Slot held;
+		if(!McSurv::GetSlot(McSurv::AREA_INV, McSurv::SelectedSlot(), held) || !Mc::IsBlockItem((uint8_t)held.item)){
+			printf("McInteract: nothing placed, the selected slot holds no block\n");
+			return;
+		}
+		placeId = (uint8)held.item;
+	}
+	if(survival && !McSurv::Consume(McSurv::SelectedSlot()))
+		return;
+	world.Set(px, py, pz, placeId);
+	printf("McInteract: placed %s at (%d,%d,%d) [%s]\n", Mc::GetBlockInfo(placeId).name, px, py, pz, kind);
 }
 
 }

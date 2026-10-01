@@ -132,3 +132,18 @@ MC_TEST(ray_origin_on_integer_coordinate)
 	MC_CHECK_EQ(h.x, 2);
 	MC_CHECK_EQ(h.nx, -1);
 }
+
+#include "../../src/minecraft/game/McInteract.h"
+
+MC_TEST(interact_cannot_place_when_ray_starts_inside_block)
+{
+	World w;
+	w.Set(0, 0, 0, BLOCK_STONE);
+	RayHit inside = RayCast(w, 0.5f, 0.5f, 0.5f, 1, 0, 0, 10);
+	MC_CHECK(!McInteract::CanPlace(inside));
+	RayHit miss = RayCast(w, 5.5f, 5.5f, 5.5f, 1, 0, 0, 10);
+	MC_CHECK(!McInteract::CanPlace(miss));
+	w.Set(4, 0, 0, BLOCK_STONE);
+	RayHit face = RayCast(w, 2.5f, 0.5f, 0.5f, 1, 0, 0, 10);
+	MC_CHECK(McInteract::CanPlace(face));
+}

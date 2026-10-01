@@ -116,15 +116,26 @@ BoxPush PushBoxOutOfBlocks(const World &w, OrientedBox &b)
 
 SweepResult SweepBox(const World &w, const OrientedBox &from, float dx, float dy, float dz)
 {
+	// Check for non-finite inputs (NaN, inf); they return the start pose, blocked.
+	// Above ~400 m the step exceeds 0.4 (becomes dist/1000); a one-block wall is still safe up to ~1.6 km per call.
+	if(!(fabsf(dx) < 1e18f) || !(fabsf(dy) < 1e18f) || !(fabsf(dz) < 1e18f))
+		return { true, from.x, from.y, 0.0f };
+
 	SweepResult res = { false, from.x + dx, from.y + dy, dz };
 	if(BoxOverlapsBlocks(w, from))
 		return res;
+
 	float dist = sqrtf(dx * dx + dy * dy + dz * dz);
-	int steps = (int)ceilf(dist / 0.4f);
-	if(steps < 1)
+	if(!(dist < 1e18f))
+		return { true, from.x, from.y, 0.0f };
+
+	float s = ceilf(dist / 0.4f);
+	if(s > 1000.0f)
+		s = 1000.0f;
+	if(s < 1.0f)
 		return res;
-	if(steps > 1000)
-		steps = 1000;
+
+	int steps = (int)s;
 	for(int i = 1; i <= steps; i++){
 		float t = (float)i / (float)steps;
 		OrientedBox b = from;

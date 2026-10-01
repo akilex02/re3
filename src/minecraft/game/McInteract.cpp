@@ -5,6 +5,7 @@
 #include "Pad.h"
 #include "Camera.h"
 #include "Ped.h"
+#include "Weapon.h"
 #include "PlayerPed.h"
 #include "PlayerInfo.h"
 #include "Vehicle.h"
@@ -19,12 +20,13 @@ namespace McInteract
 {
 
 // Distance from the camera to the nearest GTA geometry along the same ray, or reach+1 if none.
+// The hit entity is returned in entity (nil if none).
 // The player's own body (ped, and vehicle when driving) is ignored.
 static float
-GtaHitDistance(const CVector &from, const CVector &to)
+GtaHit(const CVector &from, const CVector &to, CEntity *&entity)
 {
 	CColPoint colPoint;
-	CEntity *entity = nil;
+	entity = nil;
 	CPlayerPed *ped = FindPlayerPed();
 	CVehicle *veh = FindPlayerVehicle();
 	CEntity *prevIgnore = CWorld::pIgnoreEntity;
@@ -47,6 +49,7 @@ GtaHitDistance(const CVector &from, const CVector &to)
 
 	if(found)
 		return (colPoint.point - from).Magnitude();
+	entity = nil;
 	return reach + 1.0f;
 }
 
@@ -75,9 +78,17 @@ Update(Mc::World &world)
 	CVector dir = TheCamera.GetForward();
 	dir.Normalise();
 	Mc::RayHit hit = Mc::RayCast(world, origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, reach);
+	CEntity *gtaEntity;
+	float gtaDist = GtaHit(origin, origin + dir * reach, gtaEntity);
+
+	if(breakBlock && gtaEntity != nil && gtaEntity->IsPed() && (!hit.hit || gtaDist < hit.t)){
+		CPed *ped = (CPed*)gtaEntity;
+		ped->InflictDamage(FindPlayerPed(), WEAPONTYPE_BASEBALLBAT, 10.0f, PEDPIECE_TORSO, 0);
+		return;
+	}
 	if(!hit.hit)
 		return;
-	if(GtaHitDistance(origin, origin + dir * reach) < hit.t)
+	if(gtaDist < hit.t)
 		return;	// GTA geometry is in front of the block
 
 	if(breakBlock){

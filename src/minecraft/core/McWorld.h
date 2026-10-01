@@ -59,6 +59,9 @@ public:
 	// Load of a valid file with zero chunks succeeds and leaves an empty world.
 	bool Load(const char *path);
 
+	// Sets dirty = true on every chunk without changing Revision().
+	void MarkAllDirty();
+
 private:
 	World(const World&);
 	World &operator=(const World&);

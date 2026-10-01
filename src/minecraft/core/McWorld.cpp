@@ -192,4 +192,10 @@ bool World::Load(const char *path)
 	return ok;
 }
 
+void World::MarkAllDirty()
+{
+	for(ChunkMap::iterator it = m_chunks.begin(); it != m_chunks.end(); ++it)
+		it->second->dirty = true;
+}
+
 }

@@ -294,3 +294,17 @@ MC_TEST(world_load_maps_unknown_block_ids_to_air)
 	MC_CHECK_EQ(w.FindChunk(ChunkPos{1, 0, 0})->count, 1);
 	remove(p.c_str());
 }
+
+MC_TEST(world_mark_all_dirty_sets_every_chunk_without_changing_revision)
+{
+	World w;
+	w.Set(0, 0, 0, BLOCK_DIRT);
+	w.Set(40, 0, 0, BLOCK_DIRT);
+	for(World::ChunkMap::const_iterator it = w.Chunks().begin(); it != w.Chunks().end(); ++it)
+		it->second->dirty = false;
+	uint32_t rev = w.Revision();
+	w.MarkAllDirty();
+	for(World::ChunkMap::const_iterator it = w.Chunks().begin(); it != w.Chunks().end(); ++it)
+		MC_CHECK(it->second->dirty);
+	MC_CHECK_EQ(w.Revision(), rev);
+}

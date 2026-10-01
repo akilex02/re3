@@ -362,3 +362,6 @@ codewarrior/Debug/
 
 src/extras/GitSHA1.cpp
 mcassets/
+
+# Local SDD/agent workspace
+.superpowers/

@@ -12,15 +12,16 @@ static const char jarFile[] = "mcassets/client.jar";
 static const char catalogFile[] = "mcassets/item-catalog-26.3.json";
 static const char saveFile[] = "mcsurvival.dat";
 static const uint32 retryInterval = 3000;	// ms of game time between attempts to create the core
-static const uint32 tickMs = 50;	// the survival core runs at 20 Hz
-static const uint32 maxCatchUpMs = 250;	// a long frame never fires a burst of mining ticks
+static const float tickMs = 50.0f;	// the survival core runs at 20 Hz
+static const float maxCatchUpMs = 250.0f;	// a long frame never fires a burst of mining ticks
 
 static McSurvival *core;
 static int selected;
-static uint32 accumMs;
+static float accumMs;	// ms of game time not yet spent on mining ticks
 static float progress;
 static uint32 lastAttempt;
 static bool attempted;
+static bool createFailed;	// both files exist but the core would not start: do not parse the jar again this session
 static bool reportedMissing;
 
 static bool
@@ -33,6 +34,8 @@ FileExists(const char *path)
 	return true;
 }
 
+extern "C" {
+
 static int32_t
 GetCb(void *ctx, int32_t x, int32_t y, int32_t z)
 {
@@ -43,6 +46,8 @@ static void
 SetCb(void *ctx, int32_t x, int32_t y, int32_t z, int32_t id)
 {
 	((Mc::World*)ctx)->Set(x, y, z, (uint8_t)id);
+}
+
 }
 
 static void
@@ -60,11 +65,24 @@ TryCreate(void)
 		names[i] = Mc::GetItemInfo((uint8_t)i).name;
 	core = mc_survival_create(jarFile, catalogFile, names, Mc::ITEM_COUNT);
 	if(core == nil){
-		printf("McSurvival: survival core not available: %s\n", mc_survival_last_error());
+		printf("McSurvival: survival core not available: %s (needs a restart or a changed file; not retrying)\n", mc_survival_last_error());
+		createFailed = true;
 		return;
 	}
-	if(mc_survival_load(core, saveFile))
-		printf("McSurvival: loaded %s\n", saveFile);
+	if(FileExists(saveFile)){
+		if(mc_survival_load(core, saveFile))
+			printf("McSurvival: loaded %s\n", saveFile);
+		else{
+			// keep the evidence: the next save would overwrite the unreadable file with an empty inventory
+			char bad[64];
+			sprintf(bad, "%s.bad", saveFile);
+			remove(bad);
+			if(rename(saveFile, bad) == 0)
+				printf("McSurvival: %s could not be read, moved to %s; starting with an empty inventory\n", saveFile, bad);
+			else
+				printf("McSurvival: %s could not be read and could not be moved aside; starting with an empty inventory\n", saveFile);
+		}
+	}
 	printf("McSurvival: survival core ready\n");
 }
 
@@ -74,7 +92,7 @@ namespace McSurv
 void
 Update(void)
 {
-	if(core != nil)
+	if(core != nil || createFailed)
 		return;
 	uint32 now = CTimer::GetTimeInMilliseconds();
 	if(attempted && now - lastAttempt < retryInterval)
@@ -105,9 +123,10 @@ Shutdown(void)
 	}
 	core = nil;
 	selected = 0;
-	accumMs = 0;
+	accumMs = 0.0f;
 	progress = 0.0f;
 	attempted = false;
+	createFailed = false;
 	reportedMissing = false;
 }
 
@@ -162,7 +181,7 @@ Consume(int slot)
 void
 StopMining(void)
 {
-	accumMs = 0;
+	accumMs = 0.0f;
 	progress = 0.0f;
 	if(core != nil)
 		mc_survival_stop_mining(core);
@@ -183,7 +202,7 @@ Mine(Mc::World &world, const double eye[3], const double dir[3], bool attacking,
 		StopMining();
 		return;
 	}
-	accumMs += CTimer::GetTimeStepInMilliseconds();
+	accumMs += CTimer::GetTimeStep() * 20.0f;	// the time step is in 1/50 s
 	if(accumMs > maxCatchUpMs)
 		accumMs = maxCatchUpMs;
 	while(accumMs >= tickMs){

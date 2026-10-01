@@ -20,6 +20,7 @@
 6. **Parche inicial (tecla F9)**: GTA no tiene troncos ni menas y no hay generador todavía. F9 construye junto al jugador un parche con árbol, piedra, menas, arena y grava para poder probar el ciclo.
 7. **Progreso de minería con barra 2D**, no grietas en 10 etapas (requiere pasada de render propia). Los drops van directos al inventario (sin items en el suelo).
 8. **Sin antorcha como bloque** (el mesher solo dibuja cubos). **Sin horno funcional**: el ciclo completo llega hasta la piedra; las herramientas de hierro se pueden fabricar si se tienen lingotes, pero obtenerlos exige fundir (fase siguiente).
+9. **Sin arrastrar para repartir ni doble clic para recoger** (spec sección 1). MinecraftOSS tiene `Inventory::distribute`, `distribute_crafting` y `pickup_all`; un futuro `mc_inv_distribute` podría exponerlos.
 
 ## Global Constraints
 

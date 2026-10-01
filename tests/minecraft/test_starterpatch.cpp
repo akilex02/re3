@@ -51,3 +51,15 @@ MC_TEST(starterpatch_works_at_negative_coordinates)
 	MC_CHECK(CountId(w, -20, -30, -5, (uint8_t)FindItemByName("minecraft:oak_log")) >= 4);
 	MC_CHECK(w.ChunkCount() > 0);
 }
+
+MC_TEST(starterpatch_keeps_blocks_already_in_its_box)
+{
+	World w;
+	const uint8_t dirt = (uint8_t)FindItemByName("minecraft:dirt");
+	w.Set(1, 1, 10, dirt);	// inside the stone block
+	w.Set(5, 5, 11, dirt);	// inside the tree trunk
+	BuildStarterPatch(w, 0, 0, 10);
+	MC_CHECK_EQ(w.Get(1, 1, 10), dirt);
+	MC_CHECK_EQ(w.Get(5, 5, 11), dirt);
+	MC_CHECK_EQ(w.Get(0, 0, 10), (uint8_t)FindItemByName("minecraft:coal_ore"));	// untouched cells are still built
+}

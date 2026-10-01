@@ -77,6 +77,8 @@ MC_TEST(layout_slots_do_not_overlap_and_stay_on_screen)
 			UiSlot s[MAXS];
 			float w = sizes[k][0], h = sizes[k][1];
 			int n = Build(wb != 0, w, h, s);
+			MC_CHECK(n > 0);
+			MC_CHECK_EQ(n, wb ? 46 : 45);
 			for(int i = 0; i < n; i++){
 				MC_CHECK(s[i].w > 0.0f && s[i].h > 0.0f);
 				MC_CHECK(s[i].x >= 0.0f && s[i].y >= 0.0f);

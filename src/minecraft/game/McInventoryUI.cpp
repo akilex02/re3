@@ -10,6 +10,8 @@
 #include "PlayerPed.h"
 #include "CutsceneMgr.h"
 #include "Replay.h"
+#include "Camera.h"
+#include "World.h"
 #include "mc_bridge.h"
 #include "McItemTable.h"
 #include "McInventoryLayout.h"
@@ -20,9 +22,12 @@
 
 static const int maxSlots = 64;
 
+// The player ped reads the pad before McMode::Update runs, and CCamera::Process clears PLAYERCONTROL_CAMERA every frame
+// after it, so that bit is never set when the ped reads its controls. PLAYERCONTROL_UNK10 is used by nothing else.
+static const uint8 PLAYERCONTROL_MCINVENTORY = PLAYERCONTROL_UNK10;
+
 static bool open;
 static bool workbench;
-static bool setCameraFlag;	// we set PLAYERCONTROL_CAMERA, so we clear it again
 static float mouseX, mouseY;
 static Mc::UiSlot slots[maxSlots];
 static int numSlots;
@@ -40,18 +45,6 @@ static void
 Relayout(void)
 {
 	numSlots = Mc::BuildInventoryLayout(workbench, SCREEN_WIDTH, SCREEN_HEIGHT, slots, maxSlots);
-}
-
-// "minecraft:oak_planks" -> "oak planks"
-static void
-DisplayName(const char *id, char *out, size_t size)
-{
-	const char *p = strchr(id, ':');
-	p = p ? p + 1 : id;
-	size_t n = 0;
-	for(; *p && n + 1 < size; p++)
-		out[n++] = *p == '_' ? ' ' : *p;
-	out[n] = '\0';
 }
 
 // The mouse deltas move our own cursor and are then zeroed so the camera does not turn (same trick as the debug menu).
@@ -94,16 +87,15 @@ IsOpen(void)
 void
 Open(bool wb)
 {
-	if(open || !McSurv::IsReady())
+	if(open || !McSurv::IsReady() || FindPlayerVehicle() != nil)
 		return;
 	CPad *pad = CPad::GetPad(0);
 	open = true;
 	workbench = wb;
 	mouseX = SCREEN_WIDTH / 2.0f;
 	mouseY = SCREEN_HEIGHT / 2.0f;
-	// stop the player (movement, attacks, camera) while the screen is up
-	setCameraFlag = !pad->IsPlayerControlsDisabledBy(PLAYERCONTROL_CAMERA);
-	pad->SetDisablePlayerControls(PLAYERCONTROL_CAMERA);
+	// stop the player (movement, attacks) while the screen is up
+	pad->SetDisablePlayerControls(PLAYERCONTROL_MCINVENTORY);
 	McSurv::StopMining();
 	Relayout();
 }
@@ -120,9 +112,7 @@ Close(void)
 		if(lost > 0)
 			printf("McInventoryUI: %d stack(s) did not fit in the inventory and were lost\n", lost);
 	}
-	if(setCameraFlag)
-		CPad::GetPad(0)->SetEnablePlayerControls(PLAYERCONTROL_CAMERA);
-	setCameraFlag = false;
+	CPad::GetPad(0)->SetEnablePlayerControls(PLAYERCONTROL_MCINVENTORY);
 }
 
 void
@@ -142,7 +132,9 @@ Update(void)
 	}
 
 	// the screen goes away when the player cannot use it any more
-	if(player == nil || player->DyingOrDead() || CCutsceneMgr::IsRunning() || CCutsceneMgr::IsCutsceneProcessing() || CReplay::IsPlayingBack()){
+	if(player == nil || player->DyingOrDead() || CCutsceneMgr::IsRunning() || CCutsceneMgr::IsCutsceneProcessing() || CReplay::IsPlayingBack() ||
+			TheCamera.m_WideScreenOn || FindPlayerVehicle() != nil ||
+			(pad->DisablePlayerControls & ~PLAYERCONTROL_MCINVENTORY) != 0){	// scripts, garages, phone: the screen is hidden or unusable
 		Close();
 		return;
 	}
@@ -150,10 +142,7 @@ Update(void)
 		Close();
 		return;
 	}
-	if(!pad->IsPlayerControlsDisabledBy(PLAYERCONTROL_CAMERA)){
-		pad->SetDisablePlayerControls(PLAYERCONTROL_CAMERA);	// a script cleared it
-		setCameraFlag = true;
-	}
+	pad->SetDisablePlayerControls(PLAYERCONTROL_MCINVENTORY);	// re-assert every frame
 
 	Relayout();
 	UpdateMouse(pad);
@@ -222,7 +211,7 @@ Render2d(void)
 	// tooltip for the item under the mouse (not while a stack is held)
 	if(hoverItem.item != 0 && held.item == 0){
 		char name[64];
-		DisplayName(Mc::GetItemInfo((uint8_t)hoverItem.item).name, name, sizeof(name));
+		McHotbar::DisplayName(Mc::GetItemInfo((uint8_t)hoverItem.item).name, name, sizeof(name));
 		AsciiToUnicode(name, gUString);
 		CFont::SetBackgroundOff();
 		CFont::SetScale(SCREEN_SCALE_X(0.4f), SCREEN_SCALE_Y(0.6f));

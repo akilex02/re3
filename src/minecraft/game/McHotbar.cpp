@@ -39,14 +39,14 @@ DrawIcon(uint8 id, const CRect &rect, RwTexture *atlas)
 		sprite.m_pTexture = nil;
 		RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nil);
 	}else{
-		const Mc::BlockInfo &info = Mc::GetBlockInfo(id);
+		const Mc::ItemInfo &info = Mc::GetItemInfo(id);
 		CSprite2d::DrawRect(rect, CRGBA(info.r, info.g, info.b, 255));
 	}
 }
 
 // "minecraft:oak_planks" -> "oak planks"
-static void
-DisplayName(const char *id, char *out, size_t size)
+void
+McHotbar::DisplayName(const char *id, char *out, size_t size)
 {
 	const char *p = strchr(id, ':');
 	p = p ? p + 1 : id;
@@ -139,7 +139,7 @@ DrawSurvival(void)
 	// name of the selected item under the bar
 	if(selectedItem.item != 0){
 		char name[64];
-		DisplayName(Mc::GetItemInfo((uint8_t)selectedItem.item).name, name, sizeof(name));
+		McHotbar::DisplayName(Mc::GetItemInfo((uint8_t)selectedItem.item).name, name, sizeof(name));
 		AsciiToUnicode(name, gUString);
 		SetTextStyle(0.4f, 0.6f);
 		CFont::SetCentreOn();

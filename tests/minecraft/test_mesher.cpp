@@ -1,5 +1,6 @@
 #include "mctest.h"
 #include "McMesher.h"
+#include "McAtlasData.h"
 
 using namespace Mc;
 
@@ -223,4 +224,24 @@ MC_TEST(extract_quads_single_quad_is_identity)
 		MC_CHECK_NEAR(bv[i].x, (float)i, 0.0);
 	for(int i = 0; i < 6; i++)
 		MC_CHECK_EQ(bi[i], quad[i]);
+}
+
+// A block's faces must stay inside its own tile of the ATLAS_TILES x ATLAS_TILES atlas, for ids in every row and column.
+MC_TEST(mesh_textured_uvs_stay_inside_the_blocks_atlas_tile)
+{
+	const int ids[] = { BLOCK_DIRT, BLOCK_GLASS, 13, 14, 29 };
+	for(size_t n = 0; n < sizeof(ids) / sizeof(ids[0]); n++){
+		int id = ids[n];
+		World w;
+		w.Set(0, 0, 0, (uint8_t)id);
+		ChunkMesh m;
+		MeshChunk(w, origin(), true, m);
+		MC_CHECK_EQ(m.verts.size(), 24);
+		float tile = 1.0f / (float)ATLAS_TILES;
+		float u0 = (float)(id % ATLAS_TILES) * tile, v0 = (float)(id / ATLAS_TILES) * tile;
+		for(size_t i = 0; i < m.verts.size(); i++){
+			MC_CHECK(m.verts[i].u >= u0 - 1e-5f && m.verts[i].u <= u0 + tile + 1e-5f);
+			MC_CHECK(m.verts[i].v >= v0 - 1e-5f && m.verts[i].v <= v0 + tile + 1e-5f);
+		}
+	}
 }

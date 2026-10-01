@@ -87,6 +87,9 @@ IsActive(void)
 void
 Init(void)
 {
+	// the McMode/McSurvival/McInteract messages are the only feedback for most actions: line-buffer stdout so they
+	// show up at once even when the game's output goes through a pipe (otherwise they appear minutes late)
+	setvbuf(stdout, nil, _IOLBF, 0);
 	active = false;
 	standingOnBlocks = false;
 	if(world.Load(saveFile))

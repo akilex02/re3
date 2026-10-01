@@ -1,4 +1,5 @@
 #include "McMesher.h"
+#include "McAtlasData.h"
 
 namespace Mc {
 
@@ -66,12 +67,12 @@ void MeshChunk(const World &w, ChunkPos cp, bool textured, ChunkMesh &out)
 				if(a == 2){ tu = (float)cu[i]; tv = (float)cv[i]; }
 				else if(a == 0){ tu = (float)cu[i]; tv = 1.0f - cv[i]; }
 				else { tu = (float)cv[i]; tv = 1.0f - cu[i]; }
-				float tx = (float)(id % 4), ty = (float)(id / 4);
+				float tx = (float)(id % ATLAS_TILES), ty = (float)(id / ATLAS_TILES);
 
 				McVertex v;
 				v.x = p[0]; v.y = p[1]; v.z = p[2];
-				v.u = (tx + tu) / 4.0f;
-				v.v = (ty + tv) / 4.0f;
+				v.u = (tx + tu) / (float)ATLAS_TILES;
+				v.v = (ty + tv) / (float)ATLAS_TILES;
 				v.r = r; v.g = g; v.b = b; v.a = alpha;
 				out.verts.push_back(v);
 			}

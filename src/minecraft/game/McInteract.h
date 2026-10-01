@@ -1,5 +1,6 @@
 #pragma once
 
+#include <math.h>
 #include "McWorld.h"
 #include "McRay.h"
 
@@ -32,6 +33,15 @@ namespace McInteract
 	{
 		float t0 = (hx - cx) * dx + (hy - cy) * dy + (hz - cz) * dz;
 		return t0 > 0.0f ? t0 : 0.0f;
+	}
+
+	// Cell just in front of a GTA surface hit: floor(point + normal * 0.05) per axis.
+	// floorf, not an int cast: coordinates may be negative.
+	inline void SurfacePlacementCell(float px, float py, float pz, float nx, float ny, float nz, int &cx, int &cy, int &cz)
+	{
+		cx = (int)floorf(px + nx * 0.05f);
+		cy = (int)floorf(py + ny * 0.05f);
+		cz = (int)floorf(pz + nz * 0.05f);
 	}
 
 	void Update(Mc::World &world);

@@ -22,10 +22,10 @@ namespace McInteract
 {
 
 // Distance from the camera to the nearest GTA geometry along the same ray, or reach+1 if none.
-// The hit entity is returned in entity (nil if none).
+// The hit entity is returned in entity (nil if none), the hit position and surface normal in point and normal.
 // The player's own body (ped, and vehicle when driving) is ignored.
 static float
-GtaHit(const CVector &from, const CVector &to, CEntity *&entity)
+GtaHit(const CVector &from, const CVector &to, CEntity *&entity, CVector &point, CVector &normal)
 {
 	CColPoint colPoint;
 	entity = nil;
@@ -49,8 +49,11 @@ GtaHit(const CVector &from, const CVector &to, CEntity *&entity)
 	if(veh && ped)
 		ped->bUsesCollision = savedPedCollision;
 
-	if(found)
+	if(found){
+		point = colPoint.point;
+		normal = colPoint.normal;
 		return (colPoint.point - from).Magnitude();
+	}
 	entity = nil;
 	return reach + 1.0f;
 }
@@ -92,28 +95,51 @@ Update(Mc::World &world)
 	CVector origin = camPos + dir * t0;
 	Mc::RayHit hit = Mc::RayCast(world, origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, reach);
 	CEntity *gtaEntity;
-	float gtaDist = GtaHit(origin, origin + dir * reach, gtaEntity);
-
-	if(breakBlock && gtaEntity != nil && gtaEntity->IsPed() && (!hit.hit || gtaDist < hit.t)){
-		CPed *ped = (CPed*)gtaEntity;
-		ped->InflictDamage(player, WEAPONTYPE_BASEBALLBAT, 10.0f, PEDPIECE_TORSO, 0);
-		return;
-	}
-	if(!hit.hit)
-		return;
-	if(gtaDist < hit.t)
-		return;	// GTA geometry is in front of the block
+	CVector gtaPoint, gtaNormal;
+	float gtaDist = GtaHit(origin, origin + dir * reach, gtaEntity, gtaPoint, gtaNormal);
+	bool gtaNearest = gtaEntity != nil && (!hit.hit || gtaDist < hit.t);
 
 	if(breakBlock){
+		if(gtaNearest){
+			// breaking never affects GTA geometry, only peds can be hit
+			if(gtaEntity->IsPed()){
+				CPed *ped = (CPed*)gtaEntity;
+				ped->InflictDamage(player, WEAPONTYPE_BASEBALLBAT, 10.0f, PEDPIECE_TORSO, 0);
+			}
+			return;
+		}
+		if(!hit.hit)
+			return;
 		world.Set(hit.x, hit.y, hit.z, Mc::BLOCK_AIR);
-	}else if(CanPlace(hit)){
-		int px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
-		// do not place inside the player's own body
-		CVector body = FindPlayerCoors();
-		bool insidePlayer = BodyOverlapsCell(body.x, body.y, body.z, px, py, pz);
-		if(!insidePlayer)
-			world.Set(px, py, pz, selected);
+		printf("McInteract: broke block at (%d,%d,%d)\n", hit.x, hit.y, hit.z);
+		return;
 	}
+
+	// place: against the nearest of the voxel hit and the GTA hit
+	int px, py, pz;
+	const char *kind;
+	if(gtaNearest){
+		if(gtaEntity->IsPed()){
+			printf("McInteract: nothing placed, target is a ped\n");
+			return;
+		}
+		SurfacePlacementCell(gtaPoint.x, gtaPoint.y, gtaPoint.z, gtaNormal.x, gtaNormal.y, gtaNormal.z, px, py, pz);
+		kind = "surface";
+	}else if(CanPlace(hit)){
+		px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
+		kind = "voxel";
+	}else{
+		printf("McInteract: nothing placed, no target\n");
+		return;
+	}
+	// do not place inside the player's own body
+	CVector body = FindPlayerCoors();
+	if(BodyOverlapsCell(body.x, body.y, body.z, px, py, pz)){
+		printf("McInteract: nothing placed, blocked by player\n");
+		return;
+	}
+	world.Set(px, py, pz, selected);
+	printf("McInteract: placed %s at (%d,%d,%d) [%s]\n", Mc::GetBlockInfo(selected).name, px, py, pz, kind);
 }
 
 }

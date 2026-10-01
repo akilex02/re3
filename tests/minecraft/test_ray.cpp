@@ -191,3 +191,46 @@ MC_TEST(ray_start_offset_camera_in_front_of_head)
 	float t0 = McInteract::RayStartOffset(3, 0, 0, 0, 0, 0, 1, 0, 0);
 	MC_CHECK_NEAR(t0, 0.0, 1e-6);
 }
+
+// Surface placement: cell = floor(point + normal * 0.05) per axis.
+static void
+CheckSurfaceCell(float px, float py, float pz, float nx, float ny, float nz, int ex, int ey, int ez)
+{
+	int cx = 12345, cy = 12345, cz = 12345;
+	McInteract::SurfacePlacementCell(px, py, pz, nx, ny, nz, cx, cy, cz);
+	MC_CHECK(cx == ex);
+	MC_CHECK(cy == ey);
+	MC_CHECK(cz == ez);
+}
+
+MC_TEST(surface_cell_ground)
+{
+	// (3.5,4.5,10.0) + (0,0,0.05) = (3.5,4.5,10.05) -> (3,4,10)
+	CheckSurfaceCell(3.5f, 4.5f, 10.0f, 0, 0, 1, 3, 4, 10);
+}
+
+MC_TEST(surface_cell_wall_facing_plus_x)
+{
+	// (5.0,2.5,3.5) + (0.05,0,0) = (5.05,2.5,3.5) -> (5,2,3)
+	CheckSurfaceCell(5.0f, 2.5f, 3.5f, 1, 0, 0, 5, 2, 3);
+}
+
+MC_TEST(surface_cell_wall_facing_minus_x)
+{
+	// (5.0,2.5,3.5) + (-0.05,0,0) = (4.95,2.5,3.5) -> (4,2,3)
+	CheckSurfaceCell(5.0f, 2.5f, 3.5f, -1, 0, 0, 4, 2, 3);
+}
+
+MC_TEST(surface_cell_negative_coordinates)
+{
+	// (-0.5,-0.5,-2.0) + (0,0,0.05) = (-0.5,-0.5,-1.95) -> floor = (-1,-1,-2); an int cast would give (0,0,-1)
+	CheckSurfaceCell(-0.5f, -0.5f, -2.0f, 0, 0, 1, -1, -1, -2);
+}
+
+MC_TEST(surface_cell_point_slightly_under_surface)
+{
+	// ground point 0.01 below the plane z=10: (3.5,4.5,9.99) + 0.05 = 10.04 -> z cell 10, still above the surface
+	CheckSurfaceCell(3.5f, 4.5f, 9.99f, 0, 0, 1, 3, 4, 10);
+	// wall facing -X, point 0.01 inside the wall (x=5.01): 5.01 - 0.05 = 4.96 -> x cell 4, in front of the wall
+	CheckSurfaceCell(5.01f, 2.5f, 3.5f, -1, 0, 0, 4, 2, 3);
+}

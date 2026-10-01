@@ -29,6 +29,7 @@ static const char manifestUrl[] = "https://piston-meta.mojang.com/mc/game/versio
 static const char manifestFile[] = "mcassets/manifest.json";
 static const char versionFile[] = "mcassets/version.json";
 static const char jarFile[] = "mcassets/client.jar";
+static const char jarPartFile[] = "mcassets/client.jar.part";
 static const char jarTextureDir[] = "assets/minecraft/textures/";
 static const long maxJsonSize = 16 * 1024 * 1024;
 static const long maxPngSize = 1024 * 1024;
@@ -132,6 +133,7 @@ ReadJsonFile(const char *path, std::string &out)
 static void
 RemoveTemporaryFiles(void)
 {
+	remove(jarPartFile);
 	remove(manifestFile);
 	remove(versionFile);
 }
@@ -164,22 +166,29 @@ PrintableId(const std::string &id)
 	return id.c_str();
 }
 
-// Extracts every block and item texture from the client jar and returns how many exist afterwards.
-// Entries missing from the jar are tolerated (their tile keeps its flat colour); zero means the jar is
-// unusable. unzip returns 1 for warnings and 11 when a named entry is missing, so the files decide.
-static int
+enum ExtractResult {
+	EXTRACT_OK,		// jar readable; individual entries may be missing
+	EXTRACT_BAD_JAR,	// unzip reports a corrupt or non-zip archive
+	EXTRACT_NO_UNZIP	// unzip could not be run: the jar cannot be judged and must be kept
+};
+
+// Extracts every block and item texture from the client jar. The jar is judged by unzip's exit status, not
+// by the PNGs already on disk: 0 (ok), 1 (warnings) and 11 (some named entries missing, whose tiles keep
+// their flat colour) mean a usable jar. 127 and -1 (unzip missing or not run normally) mean no verdict.
+// Anything else (2 and 3 severe/zip-file errors, 9 not a zip, 4..8, 10...) means a corrupt or truncated jar.
+static ExtractResult
 ExtractTextures(void)
 {
 	std::string cmd = std::string("unzip -o -j -q \"") + jarFile + "\"";
 	for(int id = 1; id < Mc::ITEM_COUNT; id++)
 		cmd += std::string(" \"") + jarTextureDir + Mc::BlockTextureFile(id) + "\"";
 	cmd += std::string(" -d \"") + assetDir + "\"";
-	RunCommand(cmd);
-	int n = 0;
-	for(int id = 1; id < Mc::ITEM_COUNT; id++)
-		if(FileSize(LocalTexturePath(id).c_str()) > 0)
-			n++;
-	return n;
+	int status = RunCommand(cmd);
+	if(status == 0 || status == 1 || status == 11)
+		return EXTRACT_OK;
+	if(status == 127 || status == -1)
+		return EXTRACT_NO_UNZIP;
+	return EXTRACT_BAD_JAR;
 }
 
 // Every string reaching the shell is built from the constants above plus URLs that passed
@@ -198,8 +207,11 @@ Download(uint32 session)
 	// the client jar is kept after the first download: extract from it, download only when it is missing or unusable
 	if(FileSize(jarFile) > 0){
 		printf("McAtlas: extracting textures from the existing client jar\n");
-		if(ExtractTextures() > 0)
+		ExtractResult res = ExtractTextures();
+		if(res == EXTRACT_OK)
 			return true;
+		if(res == EXTRACT_NO_UNZIP)
+			return Fail("extract textures", "unzip could not be run");
 		printf("McAtlas: existing client jar is unusable; downloading it again\n");
 		remove(jarFile);
 		if(Stopped(session))
@@ -242,17 +254,26 @@ Download(uint32 session)
 	if(!Mc::IsAllowedMojangUrl(url))
 		return Fail("client url", "URL rejected");
 	printf("McAtlas: downloading client jar\n");
-	cmd = std::string("curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 120 -o \"") + jarFile + "\" \"" + url + "\"";
+	cmd = std::string("curl -fsSL --proto =https --proto-redir =https --connect-timeout 10 --max-time 120 -o \"") + jarPartFile + "\" \"" + url + "\"";
 	status = RunCommand(cmd);
 	if(status != 0)
 		return FailCommand("client jar", "curl", status);
 	if(Stopped(session))
 		return false;
+	// only a finished, non-empty download becomes client.jar
+	if(FileSize(jarPartFile) <= 0)
+		return Fail("client jar", "empty download");
+	remove(jarFile);
+	if(rename(jarPartFile, jarFile) != 0)
+		return Fail("client jar", strerror(errno));
 
-	if(ExtractTextures() == 0){
+	ExtractResult res = ExtractTextures();
+	if(res == EXTRACT_BAD_JAR){
 		remove(jarFile);	// truncated or not a jar
-		return Fail("extract textures", "no texture could be extracted from the client jar");
+		return Fail("extract textures", "the downloaded client jar is corrupt");
 	}
+	if(res == EXTRACT_NO_UNZIP)
+		return Fail("extract textures", "unzip could not be run");
 	return true;
 }
 
@@ -427,7 +448,7 @@ Init(void)
 	currentSession = ++sessionCounter;
 
 	if(CacheComplete()){
-		// leftovers of a download whose curl finished after the game had quit
+		// removes the manifest, version json and a stale client.jar.part; client.jar stays
 		RemoveTemporaryFiles();
 		LoadAtlas();
 		return;

@@ -1,4 +1,5 @@
 #include "McAtlasData.h"
+#include "McItemTable.h"
 #include <string.h>
 
 namespace Mc {
@@ -118,13 +119,7 @@ bool IsAllowedMojangUrl(const std::string &url)
 
 const char *BlockTextureFile(uint8_t id)
 {
-	switch(id){
-	case BLOCK_DIRT: return "dirt.png";
-	case BLOCK_STONE: return "stone.png";
-	case BLOCK_WOOD: return "oak_planks.png";
-	case BLOCK_GLASS: return "glass.png";
-	default: return nullptr;
-	}
+	return GetItemInfo(id).texture;
 }
 
 void ComposeAtlas(const TilePixels tiles[ATLAS_TILES * ATLAS_TILES], std::vector<uint8_t> &out)
@@ -137,8 +132,8 @@ void ComposeAtlas(const TilePixels tiles[ATLAS_TILES * ATLAS_TILES], std::vector
 			uint8_t *dst = &out[((ty * TILE_PIXELS + y) * ATLAS_PIXELS + tx * TILE_PIXELS + x) * 4];
 			if(tiles[t].valid){
 				memcpy(dst, &tiles[t].rgba[(y * TILE_PIXELS + x) * 4], 4);
-			}else if(t < BLOCK_COUNT){
-				const BlockInfo &bi = GetBlockInfo((uint8_t)t);
+			}else if(t < ITEM_COUNT){
+				const ItemInfo &bi = GetItemInfo((uint8_t)t);
 				dst[0] = bi.r; dst[1] = bi.g; dst[2] = bi.b; dst[3] = 255;
 			}else{
 				dst[0] = 255; dst[1] = 0; dst[2] = 255; dst[3] = 255;

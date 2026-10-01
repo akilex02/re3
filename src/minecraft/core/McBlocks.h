@@ -8,9 +8,13 @@ enum BlockId : uint8_t {
 	BLOCK_DIRT,
 	BLOCK_STONE,
 	BLOCK_WOOD,
-	BLOCK_GLASS,
-	BLOCK_COUNT
+	BLOCK_GLASS
 };
+
+// Placeable block ids are 1..BLOCK_COUNT-1 (see McItemTable.h).
+const int BLOCK_COUNT = 30;
+// The classic (non-survival) hotbar only offers ids 1..CLASSIC_BLOCKS.
+const int CLASSIC_BLOCKS = 4;
 
 struct BlockInfo {
 	const char *name;

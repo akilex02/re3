@@ -161,11 +161,12 @@ MC_TEST(atlas_extract_client_url_bounded_by_client_object)
 MC_TEST(atlas_block_texture_files)
 {
 	MC_CHECK(BlockTextureFile(BLOCK_AIR) == nullptr);
-	MC_CHECK(strcmp(BlockTextureFile(BLOCK_DIRT), "dirt.png") == 0);
-	MC_CHECK(strcmp(BlockTextureFile(BLOCK_STONE), "stone.png") == 0);
-	MC_CHECK(strcmp(BlockTextureFile(BLOCK_WOOD), "oak_planks.png") == 0);
-	MC_CHECK(strcmp(BlockTextureFile(BLOCK_GLASS), "glass.png") == 0);
+	MC_CHECK(strcmp(BlockTextureFile(BLOCK_DIRT), "block/dirt.png") == 0);
+	MC_CHECK(strcmp(BlockTextureFile(BLOCK_STONE), "block/stone.png") == 0);
+	MC_CHECK(strcmp(BlockTextureFile(BLOCK_WOOD), "block/oak_planks.png") == 0);
+	MC_CHECK(strcmp(BlockTextureFile(BLOCK_GLASS), "block/glass.png") == 0);
 	MC_CHECK(BlockTextureFile(200) == nullptr);
+	MC_CHECK(strcmp(BlockTextureFile(FindItemByName("minecraft:stick")), "item/stick.png") == 0);
 }
 
 static void FillTile(TilePixels &t, uint8_t v)
@@ -183,9 +184,9 @@ MC_TEST(atlas_compose_places_tiles_and_falls_back_to_flat_colours)
 		memset(tiles[i].rgba, 0, sizeof(tiles[i].rgba));
 	}
 	FillTile(tiles[1], 77);			// dirt tile valid, all bytes 77
-	// mark one distinctive pixel in tile 5 (tx=1, ty=1): local (3,2) = 1,2,3,4
-	tiles[5].valid = true;
-	uint8_t *p = &tiles[5].rgba[(2 * TILE_PIXELS + 3) * 4];
+	// mark one distinctive pixel in tile 9 (tx=1, ty=1): local (3,2) = 1,2,3,4
+	tiles[9].valid = true;
+	uint8_t *p = &tiles[9].rgba[(2 * TILE_PIXELS + 3) * 4];
 	p[0] = 1; p[1] = 2; p[2] = 3; p[3] = 4;
 
 	std::vector<uint8_t> out;
@@ -194,7 +195,7 @@ MC_TEST(atlas_compose_places_tiles_and_falls_back_to_flat_colours)
 
 	// tile 1 = (tx=1, ty=0): pixel (16,0)
 	MC_CHECK_EQ(out[(0 * ATLAS_PIXELS + 16) * 4], 77);
-	// tile 5 distinctive pixel at atlas (16+3, 16+2)
+	// tile 9 distinctive pixel at atlas (16+3, 16+2)
 	const uint8_t *q = &out[((16 + 2) * ATLAS_PIXELS + (16 + 3)) * 4];
 	MC_CHECK_EQ(q[0], 1); MC_CHECK_EQ(q[1], 2); MC_CHECK_EQ(q[2], 3); MC_CHECK_EQ(q[3], 4);
 	// tile 2 (stone, tx=2, ty=0) is invalid: flat colour of stone, alpha 255
@@ -203,7 +204,7 @@ MC_TEST(atlas_compose_places_tiles_and_falls_back_to_flat_colours)
 	MC_CHECK_EQ(s[1], GetBlockInfo(BLOCK_STONE).g);
 	MC_CHECK_EQ(s[2], GetBlockInfo(BLOCK_STONE).b);
 	MC_CHECK_EQ(s[3], 255);
-	// tile 15 (id >= BLOCK_COUNT) is invalid: magenta
-	const uint8_t *m = &out[((3 * 16) * ATLAS_PIXELS + 3 * 16) * 4];
+	// tile 63 (id >= ITEM_COUNT) is invalid: magenta
+	const uint8_t *m = &out[((7 * 16) * ATLAS_PIXELS + 7 * 16) * 4];
 	MC_CHECK_EQ(m[0], 255); MC_CHECK_EQ(m[1], 0); MC_CHECK_EQ(m[2], 255); MC_CHECK_EQ(m[3], 255);
 }

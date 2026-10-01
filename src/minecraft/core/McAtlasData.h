@@ -4,10 +4,11 @@
 #include <string>
 #include <vector>
 #include "McBlocks.h"
+#include "McItemTable.h"
 
 namespace Mc {
 
-const int ATLAS_TILES = 4;
+const int ATLAS_TILES = 8;
 const int TILE_PIXELS = 16;
 const int ATLAS_PIXELS = ATLAS_TILES * TILE_PIXELS;
 
@@ -26,7 +27,7 @@ bool ExtractClientUrl(const std::string &versionJson, std::string &url);
 // Rejects % and & (unsafe on Windows cmd.exe), uppercase hosts, ports, trailing dots.
 bool IsAllowedMojangUrl(const std::string &url);
 
-// File name under assets/minecraft/textures/block/ for a block id, or nullptr.
+// Path under assets/minecraft/textures/ for an item id (e.g. "block/dirt.png"), or nullptr.
 const char *BlockTextureFile(uint8_t id);
 
 struct TilePixels {
@@ -34,8 +35,8 @@ struct TilePixels {
 	uint8_t rgba[TILE_PIXELS * TILE_PIXELS * 4];
 };
 
-// Composes 4x4 tiles (index = block id) into a 64x64 RGBA atlas, row 0 on top.
-// Invalid tiles get the block's flat colour (magenta for ids >= BLOCK_COUNT).
+// Composes 8x8 tiles (index = item id) into a 128x128 RGBA atlas, row 0 on top.
+// Invalid tiles get the block's flat colour (magenta for ids >= ITEM_COUNT).
 void ComposeAtlas(const TilePixels tiles[ATLAS_TILES * ATLAS_TILES], std::vector<uint8_t> &out);
 
 }

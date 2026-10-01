@@ -25,17 +25,17 @@ HotbarSlot HotbarSlotRect(int index, int count, float screenW, float screenH, bo
 
 void BlockTileUV(uint8_t id, float &u0, float &v0, float &u1, float &v1)
 {
-	const float inset = 0.5f / 64.0f;
-	int tx = id % 4, ty = id / 4;
-	u0 = (float)tx / 4.0f + inset;
-	u1 = (float)(tx + 1) / 4.0f - inset;
-	v0 = (float)ty / 4.0f + inset;
-	v1 = (float)(ty + 1) / 4.0f - inset;
+	const float inset = 0.5f / 128.0f;
+	int tx = id % 8, ty = id / 8;
+	u0 = (float)tx / 8.0f + inset;
+	u1 = (float)(tx + 1) / 8.0f - inset;
+	v0 = (float)ty / 8.0f + inset;
+	v1 = (float)(ty + 1) / 8.0f - inset;
 }
 
 int HotbarCount()
 {
-	return BLOCK_COUNT - 1;
+	return CLASSIC_BLOCKS;
 }
 
 uint8_t HotbarBlock(int index)
@@ -47,7 +47,7 @@ uint8_t HotbarBlock(int index)
 
 int HotbarIndexOfBlock(uint8_t id)
 {
-	if(id < 1 || id >= BLOCK_COUNT)
+	if(id < 1 || id > CLASSIC_BLOCKS)
 		return -1;
 	return id - 1;
 }

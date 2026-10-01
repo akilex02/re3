@@ -4,6 +4,7 @@
 
 #include "McAtlas.h"
 #include "McAtlasData.h"
+#include "McItemTable.h"
 #include <atomic>
 #include <thread>
 #include <system_error>
@@ -28,13 +29,11 @@ static const char manifestUrl[] = "https://piston-meta.mojang.com/mc/game/versio
 static const char manifestFile[] = "mcassets/manifest.json";
 static const char versionFile[] = "mcassets/version.json";
 static const char jarFile[] = "mcassets/client.jar";
-static const char jarTextureDir[] = "assets/minecraft/textures/block/";
+static const char jarTextureDir[] = "assets/minecraft/textures/";
 static const long maxJsonSize = 16 * 1024 * 1024;
 static const long maxPngSize = 1024 * 1024;
-static const uint8 atlasBlocks[] = { Mc::BLOCK_DIRT, Mc::BLOCK_STONE, Mc::BLOCK_WOOD, Mc::BLOCK_GLASS };
-static const int numAtlasBlocks = sizeof(atlasBlocks) / sizeof(atlasBlocks[0]);
 
-static_assert(Mc::BLOCK_COUNT <= Mc::ATLAS_TILES * Mc::ATLAS_TILES, "every block id needs an atlas tile");
+static_assert(Mc::ITEM_COUNT <= Mc::ATLAS_TILES * Mc::ATLAS_TILES, "every item id needs an atlas tile");
 
 // Shared with the download thread. A session number identifies one Init; Init and Shutdown bump the
 // counter, which is the stop signal: a thread whose session is no longer current aborts at its next step
@@ -66,14 +65,19 @@ FileSize(const char *path)
 	return size;
 }
 
+// Local path of the extracted texture of an item id (unzip -j flattens the jar directories).
+static std::string
+LocalTexturePath(uint8 id)
+{
+	return std::string(assetDir) + "/" + Mc::TextureBasename(Mc::BlockTextureFile(id));
+}
+
 static bool
 CacheComplete(void)
 {
-	for(int i = 0; i < numAtlasBlocks; i++){
-		std::string path = std::string(assetDir) + "/" + Mc::BlockTextureFile(atlasBlocks[i]);
-		if(FileSize(path.c_str()) <= 0)
+	for(int id = 1; id < Mc::ITEM_COUNT; id++)
+		if(FileSize(LocalTexturePath(id).c_str()) <= 0)
 			return false;
-	}
 	return true;
 }
 
@@ -161,6 +165,30 @@ PrintableId(const std::string &id)
 	return id.c_str();
 }
 
+// Extracts every block and item texture from the client jar. Decides by the files: unzip returns 1 for
+// warnings and 11 when a named entry is missing.
+static bool
+ExtractTextures(bool report)
+{
+	std::string cmd = std::string("unzip -o -j -q \"") + jarFile + "\"";
+	for(int id = 1; id < Mc::ITEM_COUNT; id++)
+		cmd += std::string(" \"") + jarTextureDir + Mc::BlockTextureFile(id) + "\"";
+	cmd += std::string(" -d \"") + assetDir + "\"";
+	int status = RunCommand(cmd);
+	for(int id = 1; id < Mc::ITEM_COUNT; id++){
+		std::string path = LocalTexturePath(id);
+		if(FileSize(path.c_str()) <= 0){
+			if(report)
+				printf("McAtlas: download failed at step 'extract textures' (unzip returned %d, %s missing); using flat colours\n",
+					status, path.c_str());
+			return false;
+		}
+	}
+	if(status != 0 && report)
+		printf("McAtlas: note: unzip returned %d but all textures were extracted\n", status);
+	return true;
+}
+
 // Every string reaching the shell is built from the constants above plus URLs that passed
 // Mc::IsAllowedMojangUrl (which allows no quote, space or shell metacharacter).
 static bool
@@ -173,6 +201,15 @@ Download(uint32 session)
 		return false;
 	if(!MakeAssetDir())
 		return Fail("create mcassets", strerror(errno));
+
+	// upgrade path: a client jar left from an older version may already hold the new textures
+	if(FileSize(jarFile) > 0){
+		printf("McAtlas: extracting textures from the existing client jar\n");
+		if(ExtractTextures(false))
+			return true;
+		if(Stopped(session))
+			return false;
+	}
 
 	// manifest
 	if(!Mc::IsAllowedMojangUrl(manifestUrl))
@@ -217,25 +254,7 @@ Download(uint32 session)
 	if(Stopped(session))
 		return false;
 
-	// block textures
-	printf("McAtlas: extracting block textures\n");
-	cmd = std::string("unzip -o -j -q \"") + jarFile + "\"";
-	for(int i = 0; i < numAtlasBlocks; i++)
-		cmd += std::string(" \"") + jarTextureDir + Mc::BlockTextureFile(atlasBlocks[i]) + "\"";
-	cmd += std::string(" -d \"") + assetDir + "\"";
-	status = RunCommand(cmd);
-	// decide by the files: unzip returns 1 for warnings and 11 when a named entry is missing
-	for(int i = 0; i < numAtlasBlocks; i++){
-		std::string path = std::string(assetDir) + "/" + Mc::BlockTextureFile(atlasBlocks[i]);
-		if(FileSize(path.c_str()) <= 0){
-			printf("McAtlas: download failed at step 'extract textures' (unzip returned %d, %s missing); using flat colours\n",
-				status, path.c_str());
-			return false;
-		}
-	}
-	if(status != 0)
-		printf("McAtlas: note: unzip returned %d but all block textures were extracted\n", status);
-	return true;
+	return ExtractTextures(true);
 }
 
 static void
@@ -257,8 +276,7 @@ DownloadThread(uint32 session)
 static bool
 LoadTile(uint8 id, Mc::TilePixels &tile, bool &loggedCrop)
 {
-	const char *file = Mc::BlockTextureFile(id);
-	std::string path = std::string(assetDir) + "/" + file;
+	std::string path = LocalTexturePath(id);
 	tile.valid = false;
 
 	// rw::readPNG asserts when it cannot open the file
@@ -373,16 +391,15 @@ LoadAtlas(void)
 
 	int numValid = 0;
 	bool loggedCrop = false;
-	for(int i = 0; i < numAtlasBlocks; i++){
-		if(LoadTile(atlasBlocks[i], tiles[atlasBlocks[i]], loggedCrop)){
+	for(int id = 1; id < Mc::ITEM_COUNT; id++){
+		if(LoadTile(id, tiles[id], loggedCrop)){
 			numValid++;
 			continue;
 		}
 		// a file that exists but cannot be used is removed so that the next launch downloads it again
-		const char *file = Mc::BlockTextureFile(atlasBlocks[i]);
-		std::string path = std::string(assetDir) + "/" + file;
+		std::string path = LocalTexturePath(id);
 		if(FileSize(path.c_str()) >= 0 && remove(path.c_str()) == 0)
-			printf("McAtlas: removed broken cached texture %s; it will be downloaded again at the next launch\n", file);
+			printf("McAtlas: removed broken cached texture %s; it will be downloaded again at the next launch\n", path.c_str());
 	}
 	if(numValid == 0){
 		printf("McAtlas: no usable block texture; using flat colours\n");
@@ -399,7 +416,7 @@ LoadAtlas(void)
 	ReleaseTexture();
 	atlasTexture = tex;
 	generation++;
-	printf("McAtlas: atlas ready (%d of %d textures)\n", numValid, numAtlasBlocks);
+	printf("McAtlas: atlas ready (%d of %d textures)\n", numValid, Mc::ITEM_COUNT - 1);
 }
 
 void

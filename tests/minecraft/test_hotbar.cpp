@@ -71,29 +71,33 @@ MC_TEST(hotbar_invalid_arguments_give_empty_rect)
 MC_TEST(hotbar_tile_uv_matches_the_atlas_layout)
 {
 	float u0, v0, u1, v1;
-	const float inset = 0.5f / 64.0f;
+	const float inset = 0.5f / 128.0f;
 	BlockTileUV(BLOCK_STONE, u0, v0, u1, v1);    // id 2 -> tile (2,0)
-	MC_CHECK_NEAR(u0, 0.5 + inset, 1e-6);
-	MC_CHECK_NEAR(u1, 0.75 - inset, 1e-6);
+	MC_CHECK_NEAR(u0, 2.0 / 8.0 + inset, 1e-6);
+	MC_CHECK_NEAR(u1, 3.0 / 8.0 - inset, 1e-6);
 	MC_CHECK_NEAR(v0, 0.0 + inset, 1e-6);
-	MC_CHECK_NEAR(v1, 0.25 - inset, 1e-6);
-	BlockTileUV(5, u0, v0, u1, v1);              // id 5 -> tile (1,1)
-	MC_CHECK_NEAR(u0, 0.25 + inset, 1e-6);
-	MC_CHECK_NEAR(v0, 0.25 + inset, 1e-6);
-	MC_CHECK_NEAR(v1, 0.5 - inset, 1e-6);
+	MC_CHECK_NEAR(v1, 1.0 / 8.0 - inset, 1e-6);
+	BlockTileUV(9, u0, v0, u1, v1);              // id 9 -> tile (1,1)
+	MC_CHECK_NEAR(u0, 1.0 / 8.0 + inset, 1e-6);
+	MC_CHECK_NEAR(v0, 1.0 / 8.0 + inset, 1e-6);
+	MC_CHECK_NEAR(v1, 2.0 / 8.0 - inset, 1e-6);
 }
 
 MC_TEST(hotbar_block_index_mapping)
 {
-	MC_CHECK_EQ(HotbarCount(), BLOCK_COUNT - 1);
+	MC_CHECK_EQ(HotbarCount(), CLASSIC_BLOCKS);
+	MC_CHECK_EQ(HotbarCount(), 4);
 	MC_CHECK_EQ(HotbarBlock(0), BLOCK_DIRT);
-	MC_CHECK_EQ(HotbarBlock(HotbarCount() - 1), BLOCK_COUNT - 1);
+	MC_CHECK_EQ(HotbarBlock(HotbarCount() - 1), CLASSIC_BLOCKS);
 	MC_CHECK_EQ(HotbarBlock(-1), BLOCK_AIR);
 	MC_CHECK_EQ(HotbarBlock(HotbarCount()), BLOCK_AIR);
+	MC_CHECK_EQ(HotbarBlock(4), BLOCK_AIR);
 	MC_CHECK_EQ(HotbarIndexOfBlock(BLOCK_DIRT), 0);
 	MC_CHECK_EQ(HotbarIndexOfBlock(BLOCK_GLASS), 3);
 	MC_CHECK_EQ(HotbarIndexOfBlock(BLOCK_AIR), -1);
 	MC_CHECK_EQ(HotbarIndexOfBlock(200), -1);
+	MC_CHECK_EQ(HotbarIndexOfBlock(5), -1);
+	MC_CHECK_EQ(HotbarIndexOfBlock(BLOCK_COUNT - 1), -1);
 	for(int i = 0; i < HotbarCount(); i++)
 		MC_CHECK_EQ(HotbarIndexOfBlock(HotbarBlock(i)), i);
 }

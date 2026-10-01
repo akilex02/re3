@@ -59,9 +59,9 @@ namespace McInteract
 	// Shared by Update, the hotbar keys and the hotbar drawing.
 	bool CanInteract(void);
 
-	uint8 GetSelectedBlock(void);
-	// Ignores ids outside 1..BLOCK_COUNT-1.
-	void SetSelectedBlock(uint8 id);
+	uint8_t GetSelectedBlock(void);
+	// Ignores ids outside 1..CLASSIC_BLOCKS.
+	void SetSelectedBlock(uint8_t id);
 
 	void Update(Mc::World &world);
 }

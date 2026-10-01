@@ -76,7 +76,7 @@ GetSelectedBlock(void)
 void
 SetSelectedBlock(uint8 id)
 {
-	if(id < 1 || id >= Mc::BLOCK_COUNT)
+	if(id < 1 || id > Mc::CLASSIC_BLOCKS)
 		return;
 	selected = id;
 	printf("McInteract: selected block %s\n", Mc::GetBlockInfo(selected).name);
@@ -95,7 +95,7 @@ Update(Mc::World &world)
 	bool wheelUp = pad->GetMouseWheelUpJustDown();
 	bool wheelDown = pad->GetMouseWheelDownJustDown();
 	if(wheelUp || wheelDown){
-		int n = Mc::BLOCK_COUNT - 1;	// selectable: 1..BLOCK_COUNT-1
+		int n = Mc::CLASSIC_BLOCKS;	// selectable: 1..CLASSIC_BLOCKS
 		int i = selected - 1;
 		i += wheelUp ? 1 : -1;
 		i = (i % n + n) % n;

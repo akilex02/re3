@@ -12,6 +12,11 @@ namespace McInteract
 	}
 
 	// Player body box around a ped origin (origin is about 1.0 above the feet): radius 0.3, feet at cz-1.0, head at cz+0.8.
+	// BodyOverlapsCell below hardcodes these same numbers; keep them in sync.
+	static const float bodyFeetOffset = 1.0f;
+	static const float bodyHalfWidth = 0.3f;
+	static const float bodyHeight = 1.8f;
+
 	// True iff it strictly overlaps the unit cell at (bx,by,bz); touching faces do not count.
 	inline bool BodyOverlapsCell(float cx, float cy, float cz, int bx, int by, int bz)
 	{

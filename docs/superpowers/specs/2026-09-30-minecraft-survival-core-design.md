@@ -81,3 +81,18 @@ El inventario se guarda en un archivo junto a `mcworld.dat` (autoguardado y al s
 4. Minería con drops, recogida y desgaste.
 5. Pantallas de inventario 2x2 y mesa 3x3.
 6. Persistencia y cierre.
+
+## 11. Fases siguientes (referencia: SkyCraft)
+
+SkyCraft (`../SkyCraft-main`, MIT, https://github.com/chasmlol/SkyCraft) mezcla Minecraft real (Fabric 26.3) con Skyrim: dos procesos, memoria compartida, Skyrim dibuja todo. Es la "fase 2" del HANDOFF. Aquí se mantiene el enfoque en proceso único (MinecraftOSS enlazado), que respeta su principio rector ("ninguno de los dos juegos se reescribe; cada mecánica vive en su lado") y es viable en Linux, sin cuenta de Microsoft ni interop de texturas GPU. Fuente leída: `README.md` y `docs/DESIGN.md` (no su código).
+
+Ideas de SkyCraft que se adoptan, en el orden previsto. Cada fase tendrá su propio spec y plan.
+
+1. **Movimiento Minecraft.** SkyCraft inyecta la geometría del anfitrión como cajas AABB en las consultas de colisión de Minecraft (no como bloques), y la física de Minecraft (auto-escalón, salto, caída) corre sin cambios. `minecraftoss-player` ya tiene `Player::tick(world, input)` y `collision.rs`: se alimentaría con un campo de colisión derivado de GTA (`CWorld::ProcessLineOfSight`/`ColModel`). Resuelve los pendientes 1 y 2 del HANDOFF mejor que parchear `Ped.cpp`. El ped de GTA pasa a ser una marioneta: Minecraft decide la posición y GTA lo mueve, para que la IA, la policía y las misiones sigan viendo al jugador.
+2. **Combate.** Golpes con armas de Minecraft sobre peatones con reglas reales (`RecipeBook::weapon`, `attack_attributes`) y daño escalado a GTA con un factor configurable (SkyCraft usa `5 + 0.25 × nivel` hacia el anfitrión y `÷ 5` de vuelta); la vida de Minecraft es la autoritativa. Sustituye el daño fijo de `10.0f` actual.
+3. **Cavar en el mundo de GTA.** Romper suelo y objetos de GTA como bloques, con drops según el material (tierra, luego piedra, luego roca madre). Requiere un interruptor de destrucción, como el "Skyrim destruction: On/Off" de SkyCraft.
+4. **IA que esquiva bloques** (peatones y coches). Es el pendiente 5 del HANDOFF; SkyCraft lo hace con `PathAvoid` y `NpcBlocks`.
+5. **Mundo e inventario por partida guardada.** Instantánea ligada al guardado de GTA, como los `saveId` de SkyCraft (pendiente 6).
+6. **Generación de terreno y entorno**: `generator`/`world` de MinecraftOSS, hora del día sincronizada con GTA para el sombreado de los bloques, y luego mobs (`entities`).
+
+Lecciones de integración a tener presentes: prioridad de entrada para Minecraft con una lista corta de teclas que siguen yendo a GTA (entrar a coches, pausa); "gana el objetivo más cercano" entre el rayo voxel y el de GTA (ya implementado en `McInteract`); y que las secuencias guionizadas (misiones, cinemáticas) toman el control, como ya hace `CanInteract`.

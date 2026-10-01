@@ -26,5 +26,13 @@ namespace McInteract
 			cz - 1.0f < bz + 1 - eps && cz + 0.8f > bz + eps;
 	}
 
+	// Distance along the unit ray direction (dx,dy,dz) from the camera to the point nearest the head,
+	// clamped at 0. The interaction ray starts there so it never begins behind the player.
+	inline float RayStartOffset(float cx, float cy, float cz, float hx, float hy, float hz, float dx, float dy, float dz)
+	{
+		float t0 = (hx - cx) * dx + (hy - cy) * dy + (hz - cz) * dz;
+		return t0 > 0.0f ? t0 : 0.0f;
+	}
+
 	void Update(Mc::World &world);
 }

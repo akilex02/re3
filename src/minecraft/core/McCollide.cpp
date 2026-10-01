@@ -46,7 +46,7 @@ CollideResult PushOutOfBlocks(const World &w, float &px, float &py, float &pz, f
 			else if(bestAxis == 1) py += bestPush;
 			else pz += bestPush;
 			res.moved = true;
-			res.onGround = (bestAxis == 2 && bestPush > 0.0f);
+			res.onGround = res.onGround || (bestAxis == 2 && bestPush > 0.0f);
 			pushed = true;
 		}
 		if(!pushed)

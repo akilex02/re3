@@ -172,3 +172,125 @@ MC_TEST(world_load_absurd_chunk_count_fails)
 	MC_CHECK_EQ(w.ChunkCount(), 0);
 	remove(kTmp);
 }
+
+#include <string>
+
+static std::string tmpPath(const char *name)
+{
+	return std::string(name);
+}
+
+static bool fileExists(const std::string &p)
+{
+	FILE *f = fopen(p.c_str(), "rb");
+	if(f) fclose(f);
+	return f != nullptr;
+}
+
+MC_TEST(world_revision_increments_only_on_change)
+{
+	World w;
+	uint32_t r0 = w.Revision();
+	MC_CHECK(w.Set(1, 1, 1, BLOCK_STONE));
+	uint32_t r1 = w.Revision();
+	MC_CHECK(r1 != r0);
+	MC_CHECK(!w.Set(1, 1, 1, BLOCK_STONE));	// no-op
+	MC_CHECK_EQ(w.Revision(), r1);
+	MC_CHECK(!w.Set(100, 100, 100, BLOCK_AIR));	// no-op in a missing chunk
+	MC_CHECK_EQ(w.Revision(), r1);
+	MC_CHECK(w.Set(1, 1, 1, BLOCK_AIR));
+	MC_CHECK(w.Revision() != r1);
+	uint32_t r2 = w.Revision();
+	w.Clear();
+	MC_CHECK(w.Revision() != r2);
+}
+
+MC_TEST(world_zero_chunk_save_load_roundtrip)
+{
+	std::string p = tmpPath("mctest_empty.dat");
+	World w;
+	MC_CHECK(w.Set(1, 1, 1, BLOCK_STONE));
+	w.Set(1, 1, 1, BLOCK_AIR);
+	MC_CHECK_EQ(w.ChunkCount(), 0);
+	MC_CHECK(w.Save(p.c_str()));
+	World w2;
+	w2.Set(5, 5, 5, BLOCK_DIRT);
+	MC_CHECK(w2.Load(p.c_str()));
+	MC_CHECK_EQ(w2.ChunkCount(), 0);
+	MC_CHECK_EQ(w2.Get(5, 5, 5), BLOCK_AIR);
+	remove(p.c_str());
+}
+
+MC_TEST(world_load_changes_revision)
+{
+	std::string p = tmpPath("mctest_rev.dat");
+	World w;
+	w.Set(1, 1, 1, BLOCK_STONE);
+	MC_CHECK(w.Save(p.c_str()));
+	uint32_t r = w.Revision();
+	MC_CHECK(w.Load(p.c_str()));
+	MC_CHECK(w.Revision() != r);
+	remove(p.c_str());
+}
+
+MC_TEST(world_save_is_atomic_no_tmp_left)
+{
+	std::string p = tmpPath("mctest_atomic.dat");
+	World w;
+	w.Set(1, 2, 3, BLOCK_WOOD);
+	MC_CHECK(w.Save(p.c_str()));
+	MC_CHECK(!fileExists(p + ".tmp"));
+	World w2;
+	MC_CHECK(w2.Load(p.c_str()));
+	MC_CHECK_EQ(w2.Get(1, 2, 3), BLOCK_WOOD);
+	// overwrite an existing file
+	w.Set(1, 2, 3, BLOCK_AIR);
+	w.Set(4, 4, 4, BLOCK_DIRT);
+	MC_CHECK(w.Save(p.c_str()));
+	MC_CHECK(!fileExists(p + ".tmp"));
+	World w3;
+	MC_CHECK(w3.Load(p.c_str()));
+	MC_CHECK_EQ(w3.Get(1, 2, 3), BLOCK_AIR);
+	MC_CHECK_EQ(w3.Get(4, 4, 4), BLOCK_DIRT);
+	remove(p.c_str());
+}
+
+MC_TEST(world_save_to_missing_directory_fails_cleanly)
+{
+	World w;
+	w.Set(1, 1, 1, BLOCK_STONE);
+	MC_CHECK(!w.Save("mctest_no_such_dir/world.dat"));
+	MC_CHECK(!fileExists("mctest_no_such_dir/world.dat"));
+	MC_CHECK(!fileExists("mctest_no_such_dir/world.dat.tmp"));
+}
+
+MC_TEST(world_load_maps_unknown_block_ids_to_air)
+{
+	std::string p = tmpPath("mctest_badid.dat");
+	FILE *f = fopen(p.c_str(), "wb");
+	MC_CHECK(f != nullptr);
+	uint32_t n = 2;
+	fwrite("MCW1", 1, 4, f);
+	fwrite(&n, sizeof(n), 1, f);
+	// chunk (0,0,0): only block 200 at index 0 -> becomes all air, skipped
+	int32_t pos[3] = { 0, 0, 0 };
+	uint8_t blocks[CHUNK_VOLUME];
+	memset(blocks, 0, sizeof(blocks));
+	blocks[0] = 200;
+	fwrite(pos, sizeof(pos), 1, f);
+	fwrite(blocks, 1, sizeof(blocks), f);
+	// chunk (1,0,0): block 200 at index 0 and stone at index 1
+	pos[0] = 1;
+	blocks[1] = BLOCK_STONE;
+	fwrite(pos, sizeof(pos), 1, f);
+	fwrite(blocks, 1, sizeof(blocks), f);
+	fclose(f);
+	World w;
+	MC_CHECK(w.Load(p.c_str()));
+	MC_CHECK_EQ(w.ChunkCount(), 1);
+	MC_CHECK_EQ(w.Get(0, 0, 0), BLOCK_AIR);
+	MC_CHECK_EQ(w.Get(16, 0, 0), BLOCK_AIR);
+	MC_CHECK_EQ(w.Get(17, 0, 0), BLOCK_STONE);
+	MC_CHECK_EQ(w.FindChunk(ChunkPos{1, 0, 0})->count, 1);
+	remove(p.c_str());
+}

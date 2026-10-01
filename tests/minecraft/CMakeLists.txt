@@ -10,5 +10,6 @@ file(GLOB MC_TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 add_executable(mctests ${MC_CORE_SOURCES} ${MC_TEST_SOURCES})
 target_include_directories(mctests PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}
-	${CMAKE_CURRENT_SOURCE_DIR}/../../src/minecraft/core)
+	${CMAKE_CURRENT_SOURCE_DIR}/../../src/minecraft/core
+	${CMAKE_CURRENT_SOURCE_DIR}/../../src/minecraft/game)
 target_compile_options(mctests PRIVATE -Wall -Wextra)

@@ -137,3 +137,90 @@ MC_TEST(mesh_worst_case_checkerboard_fits_16_bit_indices)
 	MC_CHECK(m.verts.size() <= 65535);
 	MC_CHECK(m.verts.size() > 40000);
 }
+
+static void buildHollowBox(World &w)
+{
+	for(int z = 0; z < 16; z++)
+		for(int y = 0; y < 16; y++)
+			for(int x = 0; x < 16; x++){
+				bool shell = x == 0 || x == 15 || y == 0 || y == 15 || z == 0 || z == 15;
+				if(shell)
+					w.Set(x, y, z, BLOCK_STONE);
+			}
+}
+
+MC_TEST(extract_quads_batches_cover_big_mesh_within_im3d_limits)
+{
+	World w;
+	buildHollowBox(w);
+	ChunkMesh m;
+	MeshChunk(w, origin(), false, m);
+	MC_CHECK(m.verts.size() > 10000);	// would overflow librw's im3d buffers in one draw
+	size_t quads = m.verts.size() / 4;
+	MC_CHECK_EQ(m.idx.size(), quads * 6);
+
+	size_t covered = 0;
+	for(size_t q = 0; q < quads; q += MAX_QUADS_PER_DRAW){
+		size_t n = quads - q < MAX_QUADS_PER_DRAW ? quads - q : MAX_QUADS_PER_DRAW;
+		std::vector<McVertex> bv;
+		std::vector<uint16_t> bi;
+		ExtractQuads(m, q, n, bv, bi);
+		MC_CHECK(bv.size() <= 6664);
+		MC_CHECK(bi.size() <= 9996);
+		MC_CHECK_EQ(bv.size(), n * 4);
+		MC_CHECK_EQ(bi.size(), n * 6);
+		for(size_t i = 0; i < bi.size(); i++)
+			MC_CHECK(bi[i] < bv.size());
+		covered += n;
+	}
+	MC_CHECK_EQ(covered, quads);
+}
+
+MC_TEST(extract_quads_concatenation_equals_original)
+{
+	World w;
+	buildHollowBox(w);
+	ChunkMesh m;
+	MeshChunk(w, origin(), false, m);
+	size_t quads = m.verts.size() / 4;
+	std::vector<McVertex> all;
+	for(size_t q = 0; q < quads; q += MAX_QUADS_PER_DRAW){
+		size_t n = quads - q < MAX_QUADS_PER_DRAW ? quads - q : MAX_QUADS_PER_DRAW;
+		std::vector<McVertex> bv;
+		std::vector<uint16_t> bi;
+		ExtractQuads(m, q, n, bv, bi);
+		// indices rebased: batch-local index + 4*q equals the original index
+		for(size_t i = 0; i < bi.size(); i++)
+			MC_CHECK_EQ(bi[i] + 4 * q, m.idx[6 * q + i]);
+		all.insert(all.end(), bv.begin(), bv.end());
+	}
+	MC_CHECK_EQ(all.size(), m.verts.size());
+	for(size_t i = 0; i < all.size(); i++){
+		MC_CHECK_NEAR(all[i].x, m.verts[i].x, 0.0);
+		MC_CHECK_NEAR(all[i].y, m.verts[i].y, 0.0);
+		MC_CHECK_NEAR(all[i].z, m.verts[i].z, 0.0);
+		MC_CHECK_EQ(all[i].r, m.verts[i].r);
+	}
+}
+
+MC_TEST(extract_quads_single_quad_is_identity)
+{
+	ChunkMesh m;
+	McVertex v = { 0, 0, 0, 0, 0, 255, 255, 255, 255 };
+	for(int i = 0; i < 4; i++){
+		v.x = (float)i;
+		m.verts.push_back(v);
+	}
+	static const uint16_t quad[6] = { 0, 1, 2, 0, 2, 3 };
+	for(int i = 0; i < 6; i++)
+		m.idx.push_back(quad[i]);
+	std::vector<McVertex> bv;
+	std::vector<uint16_t> bi;
+	ExtractQuads(m, 0, 1, bv, bi);
+	MC_CHECK_EQ(bv.size(), 4);
+	MC_CHECK_EQ(bi.size(), 6);
+	for(int i = 0; i < 4; i++)
+		MC_CHECK_NEAR(bv[i].x, (float)i, 0.0);
+	for(int i = 0; i < 6; i++)
+		MC_CHECK_EQ(bi[i], quad[i]);
+}

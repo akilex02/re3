@@ -82,4 +82,19 @@ void MeshChunk(const World &w, ChunkPos cp, bool textured, ChunkMesh &out)
 	}
 }
 
+void ExtractQuads(const ChunkMesh &m, size_t firstQuad, size_t quadCount, std::vector<McVertex> &outVerts, std::vector<uint16_t> &outIdx)
+{
+	outVerts.clear();
+	outIdx.clear();
+	size_t total = m.verts.size() / 4;
+	if(firstQuad >= total)
+		return;
+	if(quadCount > total - firstQuad)
+		quadCount = total - firstQuad;
+	outVerts.assign(m.verts.begin() + 4 * firstQuad, m.verts.begin() + 4 * (firstQuad + quadCount));
+	outIdx.reserve(quadCount * 6);
+	for(size_t i = 6 * firstQuad; i < 6 * (firstQuad + quadCount); i++)
+		outIdx.push_back((uint16_t)(m.idx[i] - 4 * firstQuad));
+}
+
 }

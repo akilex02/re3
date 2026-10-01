@@ -1,6 +1,7 @@
 #include "McWorld.h"
 #include <string.h>
 #include <stdio.h>
+#include <string>
 
 namespace Mc {
 
@@ -69,6 +70,7 @@ bool World::Set(int x, int y, int z, uint8_t id)
 		c->count--;
 	cell = id;
 	c->dirty = true;
+	m_revision++;
 
 	if(lx == 0) MarkNeighbourDirty(p.x - 1, p.y, p.z);
 	if(lx == CHUNK_SIZE - 1) MarkNeighbourDirty(p.x + 1, p.y, p.z);
@@ -89,11 +91,13 @@ void World::Clear()
 	for(ChunkMap::iterator it = m_chunks.begin(); it != m_chunks.end(); ++it)
 		delete it->second;
 	m_chunks.clear();
+	m_revision++;
 }
 
 bool World::Save(const char *path) const
 {
-	FILE *f = fopen(path, "wb");
+	std::string tmp = std::string(path) + ".tmp";
+	FILE *f = fopen(tmp.c_str(), "wb");
 	if(f == nullptr)
 		return false;
 	uint32_t n = (uint32_t)m_chunks.size();
@@ -103,8 +107,20 @@ bool World::Save(const char *path) const
 		ok = fwrite(pos, sizeof(pos), 1, f) == 1 &&
 			fwrite(it->second->blocks, 1, CHUNK_VOLUME, f) == (size_t)CHUNK_VOLUME;
 	}
+	if(fflush(f) != 0)
+		ok = false;
 	if(fclose(f) != 0)
 		ok = false;
+	if(ok){
+#ifdef _WIN32
+		// rename() does not replace an existing file on Windows. There is a tiny window between
+		// remove and rename where neither file exists; the complete data is still in path.tmp.
+		remove(path);
+#endif
+		ok = rename(tmp.c_str(), path) == 0;
+	}
+	if(!ok)
+		remove(tmp.c_str());
 	return ok;
 }
 
@@ -128,9 +144,12 @@ bool World::Load(const char *path)
 			break;
 		}
 		c->count = 0;
-		for(int j = 0; j < CHUNK_VOLUME; j++)
+		for(int j = 0; j < CHUNK_VOLUME; j++){
+			if(c->blocks[j] >= BLOCK_COUNT)
+				c->blocks[j] = BLOCK_AIR;	// unknown id from a damaged or newer file
 			if(c->blocks[j] != BLOCK_AIR)
 				c->count++;
+		}
 		c->dirty = true;
 		ChunkPos p = { pos[0], pos[1], pos[2] };
 		ChunkMap::iterator old = m_chunks.find(p);
@@ -145,6 +164,7 @@ bool World::Load(const char *path)
 	fclose(f);
 	if(!ok)
 		Clear();
+	m_revision++;
 	return ok;
 }
 

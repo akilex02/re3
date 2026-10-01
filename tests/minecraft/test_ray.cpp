@@ -176,3 +176,18 @@ MC_TEST(body_does_not_overlap_cell_above_head)
 	// head at exactly z=5.0
 	MC_CHECK(!McInteract::BodyOverlapsCell(0.5f, 0.5f, 4.2f, 0, 0, 5));
 }
+
+#include "McInteract.h"
+
+MC_TEST(ray_start_offset_camera_behind_head)
+{
+	// camera 4 m behind the head along +x, ray points along +x
+	float t0 = McInteract::RayStartOffset(-4, 0, 0, 0, 0, 0, 1, 0, 0);
+	MC_CHECK_NEAR(t0, 4.0, 1e-5);
+}
+
+MC_TEST(ray_start_offset_camera_in_front_of_head)
+{
+	float t0 = McInteract::RayStartOffset(3, 0, 0, 0, 0, 0, 1, 0, 0);
+	MC_CHECK_NEAR(t0, 0.0, 1e-6);
+}

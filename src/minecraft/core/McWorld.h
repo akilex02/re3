@@ -37,7 +37,7 @@ class World {
 public:
 	typedef std::unordered_map<ChunkPos, Chunk*, ChunkPosHash> ChunkMap;
 
-	World() {}
+	World() : m_revision(0) {}
 	~World() { Clear(); }
 
 	uint8_t Get(int x, int y, int z) const;
@@ -50,8 +50,13 @@ public:
 	const ChunkMap &Chunks() const { return m_chunks; }
 	void Clear();
 
-	bool Save(const char *path) const;	// Task 2
-	bool Load(const char *path);		// Task 2
+	// Increments on every successful Set, Clear and Load; lets callers detect unsaved changes.
+	uint32_t Revision() const { return m_revision; }
+
+	// Save writes path.tmp and then replaces path, so a failed save leaves the old file intact.
+	bool Save(const char *path) const;
+	// Load of a valid file with zero chunks succeeds and leaves an empty world.
+	bool Load(const char *path);
 
 private:
 	World(const World&);
@@ -59,6 +64,7 @@ private:
 	void MarkNeighbourDirty(int cx, int cy, int cz);
 
 	ChunkMap m_chunks;
+	uint32_t m_revision;
 };
 
 }

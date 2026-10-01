@@ -87,3 +87,25 @@ MC_TEST(collide_glass_is_solid)
 	CollideResult r = PushOutOfBlocks(w, x, y, z, 0.3f, 1.8f);
 	MC_CHECK(r.moved);
 }
+
+MC_TEST(collide_ground_flag_survives_wall_overlap)
+{
+	// Floor of stone at z=0 (top at z=1) spanning x,y in [-2,2]; wall of stone at x=1 for z in 1..3
+	// (occupies x in [1,2), z in [1,4)). Box half width 0.3, height 1.8, centred at x=0.8, y=0.5,
+	// feet z=0.9: it sinks 0.1 into the floor and its x range [0.5,1.1] overlaps the wall by 0.1.
+	// Both penetrations are 0.1, so the order of resolution is arbitrary, but the final state must be:
+	// feet on the floor (z=1.0), out of the wall (x<=0.7), and onGround must stay true.
+	World w;
+	for(int x = -2; x <= 2; x++)
+		for(int y = -2; y <= 2; y++)
+			w.Set(x, y, 0, BLOCK_STONE);
+	for(int y = -2; y <= 2; y++)
+		for(int z = 1; z <= 3; z++)
+			w.Set(1, y, z, BLOCK_STONE);
+	float x = 0.8f, y = 0.5f, z = 0.9f;
+	CollideResult r = PushOutOfBlocks(w, x, y, z, 0.3f, 1.8f);
+	MC_CHECK(r.moved);
+	MC_CHECK(r.onGround);
+	MC_CHECK_NEAR(z, 1.0, 1e-3);
+	MC_CHECK(x <= 0.7f + 1e-3f);
+}

@@ -40,7 +40,7 @@ int32_t mc_inv_consume(McSurvival *s, int32_t slot, int32_t count);             
 
 int32_t mc_survival_mine(McSurvival *s, McGetBlockFn get, McSetBlockFn set, void *ctx,
                          const double eye[3], const double dir[3], int32_t attacking, int32_t on_ground,
-                         int32_t selected_slot, McMineResult *out);              /* un tick de 1/20 s; 1 ok, 0 error (slot fuera de 0..8) */
+                         int32_t selected_slot, McMineResult *out);              /* un tick de 1/20 s; 1 ok, 0 error (slot fuera de 0..8, get/set NULL) */
 void mc_survival_stop_mining(McSurvival *s);
 
 int32_t mc_survival_save(McSurvival *s, const char *path);                       /* 1 ok */

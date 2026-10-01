@@ -189,12 +189,12 @@ pub unsafe extern "C" fn mc_inv_consume(s: *mut McSurvival, slot: i32, count: i3
 
 /// # Safety
 /// `s` is null or live; `eye`/`dir` are null or point to 3 doubles; `out` is null or writable;
-/// `get`/`set` are safe to call with `ctx` during this call.
+/// `get`/`set` are null (the call returns 0) or safe to call with `ctx` during this call.
 #[no_mangle]
 pub unsafe extern "C" fn mc_survival_mine(
     s: *mut McSurvival,
-    get: GetFn,
-    set: SetFn,
+    get: Option<GetFn>,
+    set: Option<SetFn>,
     ctx: *mut c_void,
     eye: *const f64,
     dir: *const f64,
@@ -207,6 +207,9 @@ pub unsafe extern "C" fn mc_survival_mine(
         let Some(out) = out.as_mut() else { return 0 };
         *out = McMineResult::default();
         let Some(s) = s.as_mut() else { return 0 };
+        let (Some(get), Some(set)) = (get, set) else {
+            return 0;
+        };
         if eye.is_null() || dir.is_null() {
             return 0;
         }
@@ -306,8 +309,8 @@ mod tests {
             assert_eq!(mc_inv_consume(s, 0, 1), 0);
             let mined = mc_survival_mine(
                 s,
-                no_get,
-                no_set,
+                Some(no_get),
+                Some(no_set),
                 null_mut(),
                 v.as_ptr(),
                 v.as_ptr(),
@@ -351,8 +354,8 @@ mod tests {
             for selected in [-1, 9] {
                 let mined = mc_survival_mine(
                     s,
-                    no_get,
-                    no_set,
+                    Some(no_get),
+                    Some(no_set),
                     null_mut(),
                     v.as_ptr(),
                     v.as_ptr(),
@@ -366,8 +369,8 @@ mod tests {
             assert_eq!(
                 mc_survival_mine(
                     s,
-                    no_get,
-                    no_set,
+                    Some(no_get),
+                    Some(no_set),
                     null_mut(),
                     null(),
                     v.as_ptr(),
@@ -381,8 +384,8 @@ mod tests {
             assert_eq!(
                 mc_survival_mine(
                     s,
-                    no_get,
-                    no_set,
+                    Some(no_get),
+                    Some(no_set),
                     null_mut(),
                     v.as_ptr(),
                     v.as_ptr(),
@@ -393,6 +396,27 @@ mod tests {
                 ),
                 0
             );
+            let north = [0.0, 1.0, 0.0];
+            let eye = [0.5, 0.5, 1.5];
+            let callbacks: [(Option<GetFn>, Option<SetFn>); 3] =
+                [(None, Some(no_set)), (Some(no_get), None), (None, None)];
+            for (get, set) in callbacks {
+                result.broken = 7;
+                let mined = mc_survival_mine(
+                    s,
+                    get,
+                    set,
+                    null_mut(),
+                    eye.as_ptr(),
+                    north.as_ptr(),
+                    1,
+                    1,
+                    0,
+                    &mut result,
+                );
+                assert_eq!(mined, 0);
+                assert_eq!(result, McMineResult::default());
+            }
             assert_eq!(mc_survival_save(s, null()), 0);
             assert_eq!(mc_survival_load(s, null()), 0);
             let bad_utf8 = [0xffu8, 0xfe, 0];
@@ -423,8 +447,8 @@ mod tests {
             assert_eq!((*s).inventory.count("minecraft:stick"), 3);
             let mined = mc_survival_mine(
                 s,
-                no_get,
-                no_set,
+                Some(no_get),
+                Some(no_set),
                 null_mut(),
                 eye.as_ptr(),
                 north.as_ptr(),
@@ -438,8 +462,8 @@ mod tests {
                 let far = [odd; 3];
                 let mined = mc_survival_mine(
                     s,
-                    no_get,
-                    no_set,
+                    Some(no_get),
+                    Some(no_set),
                     null_mut(),
                     far.as_ptr(),
                     far.as_ptr(),

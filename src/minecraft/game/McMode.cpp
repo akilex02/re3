@@ -12,6 +12,7 @@
 #include "McRenderer.h"
 #include "McInteract.h"
 #include "McCollide.h"
+#include "McEntities.h"
 
 static const char *saveFile = "mcworld.dat";
 static const int toggleKey = 7;	// F8, zero based
@@ -127,6 +128,8 @@ Update(void)
 			ped->bIsStanding = false;
 		standingOnBlocks = false;
 	}
+
+	McEntities::Update(world);
 }
 
 void

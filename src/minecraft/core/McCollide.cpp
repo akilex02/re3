@@ -55,4 +55,21 @@ CollideResult PushOutOfBlocks(const World &w, float &px, float &py, float &pz, f
 	return res;
 }
 
+bool IsStandingOnBlocks(const World &w, float px, float py, float pz, float halfWidth, float tolerance)
+{
+	int x0 = (int)floorf(px - halfWidth + EPS);
+	int x1 = (int)floorf(px + halfWidth - EPS);
+	int y0 = (int)floorf(py - halfWidth + EPS);
+	int y1 = (int)floorf(py + halfWidth - EPS);
+	// cells z whose top z+1 lies in [pz - tolerance, pz + 0.01]
+	int z0 = (int)ceilf(pz - tolerance - 1.0f);
+	int z1 = (int)floorf(pz + 0.01f - 1.0f);
+	for(int z = z0; z <= z1; z++)
+	for(int y = y0; y <= y1; y++)
+	for(int x = x0; x <= x1; x++)
+		if(w.Get(x, y, z) != BLOCK_AIR)
+			return true;
+	return false;
+}
+
 }

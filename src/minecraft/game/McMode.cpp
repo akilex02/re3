@@ -21,6 +21,8 @@ static bool active;
 static uint32 savedRevision;
 static uint32 lastSaveTime;
 static const uint32 autosaveInterval = 45000;	// ms of game time
+static const float groundTolerance = 0.1f;	// feet this far above a block top still stand on it
+static bool standingOnBlocks;	// UpdateGround asserted bIsStanding on the last frame
 
 static bool
 SaveWorld(void)
@@ -30,6 +32,29 @@ SaveWorld(void)
 	savedRevision = world.Revision();
 	lastSaveTime = CTimer::GetTimeInMilliseconds();
 	return true;
+}
+
+// Voxels are not GTA collision, so GTA never sees them as ground. CPed::ProcessControl decides
+// "in the air" (Ped.cpp: CheckIfInTheAir/SetInTheAir) before CWorld::Process runs the collision pass,
+// and that pass only re-derives bIsStanding from GTA geometry; it never clears bIsInTheAir, which only
+// CPed::InTheAir -> SetLanding does when GTA ground is within 1.3 below. So, after CWorld::Process,
+// assert bIsStanding while the feet rest on blocks (this is the value the next ProcessControl reads),
+// land a ped that came down on blocks the way GTA lands it on ground, and give bIsStanding back to GTA
+// once he leaves the blocks so he falls normally.
+static void
+UpdateGround(CPlayerPed *ped, float fx, float fy, float fz)
+{
+	// moving up (a jump launch) is never standing, so a jump from a block is not cancelled
+	bool onBlocks = ped->m_vecMoveSpeed.z <= 0.0f &&
+		Mc::IsStandingOnBlocks(world, fx, fy, fz, McInteract::bodyHalfWidth, groundTolerance);
+	if(onBlocks){
+		ped->bIsStanding = true;
+		ped->m_vecMoveSpeed.z = 0.0f;
+		if(ped->bIsInTheAir)
+			ped->SetLanding();
+	}else if(standingOnBlocks)
+		ped->bIsStanding = false;	// stale: we set it, GTA ground did not
+	standingOnBlocks = onBlocks;
 }
 
 namespace McMode
@@ -51,6 +76,7 @@ void
 Init(void)
 {
 	active = false;
+	standingOnBlocks = false;
 	if(world.Load(saveFile))
 		printf("McMode: loaded %s (%d chunks)\n", saveFile, (int)world.ChunkCount());
 	savedRevision = world.Revision();
@@ -88,18 +114,18 @@ Update(void)
 	}
 
 	// In a vehicle the ped is not at its own position, so only push out the ped on foot.
-	if(active && FindPlayerPed() != nil && FindPlayerVehicle() == nil){
-		CPlayerPed *ped = FindPlayerPed();
+	CPlayerPed *ped = FindPlayerPed();
+	if(active && ped != nil && FindPlayerVehicle() == nil){
 		CVector pos = ped->GetPosition();
 		float fx = pos.x, fy = pos.y, fz = pos.z - McInteract::bodyFeetOffset;
 		Mc::CollideResult r = Mc::PushOutOfBlocks(world, fx, fy, fz, McInteract::bodyHalfWidth, McInteract::bodyHeight);
-		if(r.moved){
+		if(r.moved)
 			ped->SetPosition(fx, fy, fz + McInteract::bodyFeetOffset);
-			if(r.onGround){
-				ped->bIsStanding = true;
-				ped->m_vecMoveSpeed.z = 0.0f;
-			}
-		}
+		UpdateGround(ped, fx, fy, fz);
+	}else if(standingOnBlocks){
+		if(ped != nil)
+			ped->bIsStanding = false;
+		standingOnBlocks = false;
 	}
 }
 

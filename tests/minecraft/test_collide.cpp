@@ -109,3 +109,75 @@ MC_TEST(collide_ground_flag_survives_wall_overlap)
 	MC_CHECK_NEAR(z, 1.0, 1e-3);
 	MC_CHECK(x <= 0.7f + 1e-3f);
 }
+
+MC_TEST(ground_feet_exactly_on_block_top)
+{
+	World w;
+	w.Set(0, 0, 0, BLOCK_STONE);	// top at z = 1
+	MC_CHECK(IsStandingOnBlocks(w, 0.5f, 0.5f, 1.0f, 0.3f, 0.1f));
+}
+
+MC_TEST(ground_feet_a_hair_inside_block_top)
+{
+	World w;
+	w.Set(0, 0, 0, BLOCK_STONE);
+	MC_CHECK(IsStandingOnBlocks(w, 0.5f, 0.5f, 0.99999f, 0.3f, 0.1f));
+}
+
+MC_TEST(ground_feet_within_tolerance_above_top)
+{
+	World w;
+	w.Set(0, 0, 0, BLOCK_STONE);
+	MC_CHECK(IsStandingOnBlocks(w, 0.5f, 0.5f, 1.05f, 0.3f, 0.1f));
+	MC_CHECK(!IsStandingOnBlocks(w, 0.5f, 0.5f, 1.2f, 0.3f, 0.1f));
+}
+
+MC_TEST(ground_corner_overhanging_edge_still_stands)
+{
+	World w;
+	w.Set(0, 0, 0, BLOCK_STONE);
+	// footprint x in [0.9,1.5]: only the -x corners are over the block
+	MC_CHECK(IsStandingOnBlocks(w, 1.2f, 0.5f, 1.0f, 0.3f, 0.1f));
+	// footprint x in [1.01,1.61]: walked off the edge
+	MC_CHECK(!IsStandingOnBlocks(w, 1.31f, 0.5f, 1.0f, 0.3f, 0.1f));
+}
+
+MC_TEST(ground_touching_side_face_only_is_not_ground)
+{
+	World w;
+	w.Set(0, 0, 0, BLOCK_STONE);
+	// footprint x in [1.0,1.6] touches the block's +x face exactly
+	MC_CHECK(!IsStandingOnBlocks(w, 1.3f, 0.5f, 1.0f, 0.3f, 0.1f));
+}
+
+MC_TEST(ground_wall_at_feet_level_is_not_ground)
+{
+	World w;
+	w.Set(0, 0, 1, BLOCK_STONE);	// occupies z in [1,2): beside the body, not under it
+	MC_CHECK(!IsStandingOnBlocks(w, 0.5f, 0.5f, 1.0f, 0.3f, 0.1f));
+}
+
+MC_TEST(ground_empty_world_is_not_ground)
+{
+	World w;
+	MC_CHECK(!IsStandingOnBlocks(w, 0.5f, 0.5f, 1.0f, 0.3f, 0.1f));
+}
+
+MC_TEST(ground_works_in_negative_coordinates)
+{
+	World w;
+	w.Set(-9, -9, -5, BLOCK_DIRT);	// top at z = -4
+	MC_CHECK(IsStandingOnBlocks(w, -8.5f, -8.5f, -4.0f, 0.3f, 0.1f));
+	MC_CHECK(IsStandingOnBlocks(w, -8.5f, -8.5f, -4.00001f, 0.3f, 0.1f));
+	MC_CHECK(!IsStandingOnBlocks(w, -8.5f, -8.5f, -3.8f, 0.3f, 0.1f));
+}
+
+MC_TEST(ground_after_push_out_is_standing)
+{
+	World w;
+	w.Set(3, 3, 7, BLOCK_STONE);
+	float x = 3.5f, y = 3.5f, z = 7.93f;	// sunk into the top after a gravity step
+	CollideResult r = PushOutOfBlocks(w, x, y, z, 0.3f, 1.8f);
+	MC_CHECK(r.onGround);
+	MC_CHECK(IsStandingOnBlocks(w, x, y, z, 0.3f, 0.1f));
+}

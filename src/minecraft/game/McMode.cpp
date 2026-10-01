@@ -3,7 +3,12 @@
 #ifdef MINECRAFT_MODE
 
 #include "Pad.h"
+#include "Ped.h"
+#include "PlayerPed.h"
+#include "PlayerInfo.h"
+#include "World.h"
 #include "McMode.h"
+#include "McRenderer.h"
 
 static const char *saveFile = "mcworld.dat";
 static const int toggleKey = 7;	// F8, zero based
@@ -41,6 +46,7 @@ Shutdown(void)
 		if(!world.Save(saveFile))
 			printf("McMode: failed to save %s\n", saveFile);
 	world.Clear();
+	McRenderer::Shutdown();
 	active = false;
 }
 
@@ -50,12 +56,18 @@ Update(void)
 	if(CPad::GetPad(0)->GetFJustDown(toggleKey)){
 		active = !active;
 		printf("McMode: Steve mode %s\n", active ? "ON" : "OFF");
+		// TEMPORARY (Task 6): removed in Task 7
+		if(active){
+			CVector p = FindPlayerCoors() + FindPlayerPed()->GetForward() * 3.0f;
+			world.Set((int)floorf(p.x), (int)floorf(p.y), (int)floorf(FindPlayerCoors().z), Mc::BLOCK_STONE);
+		}
 	}
 }
 
 void
 Render(void)
 {
+	McRenderer::Render(world);
 }
 
 }

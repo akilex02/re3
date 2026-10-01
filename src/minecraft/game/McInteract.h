@@ -44,5 +44,16 @@ namespace McInteract
 		cz = (int)floorf(pz + nz * 0.05f);
 	}
 
+	// The line-of-sight test is two-sided, so a back-face hit has a normal pointing away from the viewer.
+	// Flip it toward the viewer when it points along the ray direction (dx,dy,dz).
+	inline void FaceNormalToward(float &nx, float &ny, float &nz, float dx, float dy, float dz)
+	{
+		if(nx * dx + ny * dy + nz * dz > 0.0f){
+			nx = -nx;
+			ny = -ny;
+			nz = -nz;
+		}
+	}
+
 	void Update(Mc::World &world);
 }

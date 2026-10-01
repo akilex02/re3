@@ -123,10 +123,17 @@ Update(Mc::World &world)
 			printf("McInteract: nothing placed, target is a ped\n");
 			return;
 		}
+		FaceNormalToward(gtaNormal.x, gtaNormal.y, gtaNormal.z, dir.x, dir.y, dir.z);
 		SurfacePlacementCell(gtaPoint.x, gtaPoint.y, gtaPoint.z, gtaNormal.x, gtaNormal.y, gtaNormal.z, px, py, pz);
+		if(world.Get(px, py, pz) != Mc::BLOCK_AIR){
+			printf("McInteract: nothing placed, target cell occupied\n");
+			return;
+		}
 		kind = "surface";
 	}else if(CanPlace(hit)){
-		px = hit.x + hit.nx, py = hit.y + hit.ny, pz = hit.z + hit.nz;
+		px = hit.x + hit.nx;
+		py = hit.y + hit.ny;
+		pz = hit.z + hit.nz;
 		kind = "voxel";
 	}else{
 		printf("McInteract: nothing placed, no target\n");

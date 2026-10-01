@@ -234,3 +234,28 @@ MC_TEST(surface_cell_point_slightly_under_surface)
 	// wall facing -X, point 0.01 inside the wall (x=5.01): 5.01 - 0.05 = 4.96 -> x cell 4, in front of the wall
 	CheckSurfaceCell(5.01f, 2.5f, 3.5f, -1, 0, 0, 4, 2, 3);
 }
+
+// Back-face normals are flipped toward the viewer: negated iff dot(normal, dir) > 0.
+MC_TEST(face_normal_opposing_ray_unchanged)
+{
+	// ray +x, normal -x: dot = -1
+	float nx = -1, ny = 0, nz = 0;
+	McInteract::FaceNormalToward(nx, ny, nz, 1, 0, 0);
+	MC_CHECK(nx == -1 && ny == 0 && nz == 0);
+}
+
+MC_TEST(face_normal_along_ray_negated)
+{
+	// ray +x, normal +x: dot = 1 -> (-1,0,0)
+	float nx = 1, ny = 0, nz = 0;
+	McInteract::FaceNormalToward(nx, ny, nz, 1, 0, 0);
+	MC_CHECK(nx == -1 && ny == 0 && nz == 0);
+}
+
+MC_TEST(face_normal_perpendicular_unchanged)
+{
+	// ray +x, normal +z: dot = 0
+	float nx = 0, ny = 0, nz = 1;
+	McInteract::FaceNormalToward(nx, ny, nz, 1, 0, 0);
+	MC_CHECK(nx == 0 && ny == 0 && nz == 1);
+}

@@ -12,27 +12,34 @@ typedef std::unordered_map<Mc::ChunkPos, Mc::ChunkMesh, Mc::ChunkPosHash> MeshMa
 static MeshMap meshes;
 static std::vector<RwIm3DVertex> vertexBuffer;
 static std::vector<RwImVertexIndex> indexBuffer;
+static std::vector<Mc::McVertex> batchVerts;
+static std::vector<uint16_t> batchIdx;
 
 namespace McRenderer
 {
 
+// librw's im3d buffers hold only 10000 vertices/indices, so a chunk is drawn in batches of quads.
 static void
 DrawMesh(const Mc::ChunkMesh &m)
 {
 	if(m.idx.empty())
 		return;
-	vertexBuffer.resize(m.verts.size());
-	for(size_t i = 0; i < m.verts.size(); i++){
-		const Mc::McVertex &v = m.verts[i];
-		RwIm3DVertexSetPos(&vertexBuffer[i], v.x, v.y, v.z);
-		RwIm3DVertexSetU(&vertexBuffer[i], v.u);
-		RwIm3DVertexSetV(&vertexBuffer[i], v.v);
-		RwIm3DVertexSetRGBA(&vertexBuffer[i], v.r, v.g, v.b, v.a);
-	}
-	indexBuffer.assign(m.idx.begin(), m.idx.end());
-	if(RwIm3DTransform(vertexBuffer.data(), vertexBuffer.size(), nil, rwIM3D_VERTEXUV)){
-		RwIm3DRenderIndexedPrimitive(rwPRIMTYPETRILIST, indexBuffer.data(), indexBuffer.size());
-		RwIm3DEnd();
+	size_t numQuads = m.verts.size() / 4;
+	for(size_t q = 0; q < numQuads; q += Mc::MAX_QUADS_PER_DRAW){
+		Mc::ExtractQuads(m, q, Mc::MAX_QUADS_PER_DRAW, batchVerts, batchIdx);
+		vertexBuffer.resize(batchVerts.size());
+		for(size_t i = 0; i < batchVerts.size(); i++){
+			const Mc::McVertex &v = batchVerts[i];
+			RwIm3DVertexSetPos(&vertexBuffer[i], v.x, v.y, v.z);
+			RwIm3DVertexSetU(&vertexBuffer[i], v.u);
+			RwIm3DVertexSetV(&vertexBuffer[i], v.v);
+			RwIm3DVertexSetRGBA(&vertexBuffer[i], v.r, v.g, v.b, v.a);
+		}
+		indexBuffer.assign(batchIdx.begin(), batchIdx.end());
+		if(RwIm3DTransform(vertexBuffer.data(), vertexBuffer.size(), nil, rwIM3D_VERTEXUV)){
+			RwIm3DRenderIndexedPrimitive(rwPRIMTYPETRILIST, indexBuffer.data(), indexBuffer.size());
+			RwIm3DEnd();
+		}
 	}
 }
 
@@ -57,6 +64,18 @@ Render(Mc::World &world)
 	if(meshes.empty())
 		return;
 
+	// remember the render state so the rest of the frame is unaffected
+	void *prevRaster;
+	uint32 prevCull, prevFog, prevZWrite, prevZTest, prevVertexAlpha, prevSrcBlend, prevDestBlend;
+	RwRenderStateGet(rwRENDERSTATETEXTURERASTER, &prevRaster);
+	RwRenderStateGet(rwRENDERSTATECULLMODE, &prevCull);
+	RwRenderStateGet(rwRENDERSTATEFOGENABLE, &prevFog);
+	RwRenderStateGet(rwRENDERSTATEZWRITEENABLE, &prevZWrite);
+	RwRenderStateGet(rwRENDERSTATEZTESTENABLE, &prevZTest);
+	RwRenderStateGet(rwRENDERSTATEVERTEXALPHAENABLE, &prevVertexAlpha);
+	RwRenderStateGet(rwRENDERSTATESRCBLEND, &prevSrcBlend);
+	RwRenderStateGet(rwRENDERSTATEDESTBLEND, &prevDestBlend);
+
 	RwRenderStateSet(rwRENDERSTATETEXTURERASTER, nil);
 	RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)TRUE);
 	RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)TRUE);
@@ -69,7 +88,14 @@ Render(Mc::World &world)
 	for(MeshMap::const_iterator it = meshes.begin(); it != meshes.end(); ++it)
 		DrawMesh(it->second);
 
-	RwRenderStateSet(rwRENDERSTATECULLMODE, (void*)rwCULLMODECULLBACK);
+	RwRenderStateSet(rwRENDERSTATETEXTURERASTER, prevRaster);
+	RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)(uintptr)prevZTest);
+	RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)(uintptr)prevZWrite);
+	RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)(uintptr)prevVertexAlpha);
+	RwRenderStateSet(rwRENDERSTATESRCBLEND, (void*)(uintptr)prevSrcBlend);
+	RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void*)(uintptr)prevDestBlend);
+	RwRenderStateSet(rwRENDERSTATECULLMODE, (void*)(uintptr)prevCull);
+	RwRenderStateSet(rwRENDERSTATEFOGENABLE, (void*)(uintptr)prevFog);
 }
 
 void

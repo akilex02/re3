@@ -11,6 +11,8 @@
 #include "Vehicle.h"
 #include "World.h"
 #include "Collision.h"
+#include "CutsceneMgr.h"
+#include "Replay.h"
 #include "McInteract.h"
 
 static const float reach = 6.0f;
@@ -57,6 +59,12 @@ void
 Update(Mc::World &world)
 {
 	CPad *pad = CPad::GetPad(0);
+	CPlayerPed *player = FindPlayerPed();
+
+	// no interaction without a living, controllable player outside cutscenes and replays
+	if(player == nil || player->DyingOrDead() || CCutsceneMgr::IsRunning() || CCutsceneMgr::IsCutsceneProcessing() ||
+	   pad->ArePlayerControlsDisabled() || CReplay::IsPlayingBack())
+		return;
 
 	bool wheelUp = pad->GetMouseWheelUpJustDown();
 	bool wheelDown = pad->GetMouseWheelDownJustDown();
@@ -74,16 +82,21 @@ Update(Mc::World &world)
 	if(!breakBlock && !placeBlock)
 		return;
 
-	CVector origin = TheCamera.GetPosition();
+	// The third-person camera can be outside the player's own walls, so the ray starts at the point
+	// of the camera ray nearest the player's head (head is about 0.7 above the ped origin).
+	CVector camPos = TheCamera.GetPosition();
 	CVector dir = TheCamera.GetForward();
 	dir.Normalise();
+	CVector head = player->GetPosition() + CVector(0.0f, 0.0f, 0.7f);
+	float t0 = RayStartOffset(camPos.x, camPos.y, camPos.z, head.x, head.y, head.z, dir.x, dir.y, dir.z);
+	CVector origin = camPos + dir * t0;
 	Mc::RayHit hit = Mc::RayCast(world, origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, reach);
 	CEntity *gtaEntity;
 	float gtaDist = GtaHit(origin, origin + dir * reach, gtaEntity);
 
 	if(breakBlock && gtaEntity != nil && gtaEntity->IsPed() && (!hit.hit || gtaDist < hit.t)){
 		CPed *ped = (CPed*)gtaEntity;
-		ped->InflictDamage(FindPlayerPed(), WEAPONTYPE_BASEBALLBAT, 10.0f, PEDPIECE_TORSO, 0);
+		ped->InflictDamage(player, WEAPONTYPE_BASEBALLBAT, 10.0f, PEDPIECE_TORSO, 0);
 		return;
 	}
 	if(!hit.hit)

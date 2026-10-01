@@ -20,9 +20,15 @@ header_directories(${PROJECT}_INCLUDES)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/extras/GitSHA1.cpp.in" "${CMAKE_CURRENT_BINARY_DIR}/extras/GitSHA1.cpp" @ONLY)
 list(APPEND ${PROJECT}_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/extras/GitSHA1.cpp")
 
+option(${PROJECT}_MINECRAFT_MODE "Steve mode: voxel blocks in the GTA world (src/minecraft)" ON)
+
 add_executable(${EXECUTABLE} WIN32
     ${${PROJECT}_SOURCES}
 )
+
+if(${PROJECT}_MINECRAFT_MODE)
+    target_compile_definitions(${EXECUTABLE} PRIVATE MINECRAFT_MODE)
+endif()
 
 target_link_libraries(${EXECUTABLE} PRIVATE
     librw::librw

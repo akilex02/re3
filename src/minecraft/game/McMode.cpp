@@ -3,6 +3,7 @@
 #ifdef MINECRAFT_MODE
 
 #include "Pad.h"
+#include "Timer.h"
 #include "Ped.h"
 #include "PlayerPed.h"
 #include "PlayerInfo.h"
@@ -17,6 +18,19 @@ static const int toggleKey = 7;	// F8, zero based
 
 static Mc::World world;
 static bool active;
+static uint32 savedRevision;
+static uint32 lastSaveTime;
+static const uint32 autosaveInterval = 45000;	// ms of game time
+
+static bool
+SaveWorld(void)
+{
+	if(!world.Save(saveFile))
+		return false;
+	savedRevision = world.Revision();
+	lastSaveTime = CTimer::GetTimeInMilliseconds();
+	return true;
+}
 
 namespace McMode
 {
@@ -39,13 +53,16 @@ Init(void)
 	active = false;
 	if(world.Load(saveFile))
 		printf("McMode: loaded %s (%d chunks)\n", saveFile, (int)world.ChunkCount());
+	savedRevision = world.Revision();
+	lastSaveTime = CTimer::GetTimeInMilliseconds();
 }
 
 void
 Shutdown(void)
 {
-	if(world.ChunkCount() != 0)
-		if(!world.Save(saveFile))
+	// also saves an empty world, so deleting every block persists
+	if(world.Revision() != savedRevision)
+		if(!SaveWorld())
 			printf("McMode: failed to save %s\n", saveFile);
 	world.Clear();
 	McRenderer::Shutdown();
@@ -62,6 +79,13 @@ Update(void)
 
 	if(active)
 		McInteract::Update(world);
+
+	if(world.Revision() != savedRevision && CTimer::GetTimeInMilliseconds() - lastSaveTime >= autosaveInterval){
+		if(SaveWorld())
+			printf("McMode: autosaved %s (%d chunks)\n", saveFile, (int)world.ChunkCount());
+		else
+			lastSaveTime = CTimer::GetTimeInMilliseconds();	// do not retry every frame
+	}
 
 	// In a vehicle the ped is not at its own position, so only push out the ped on foot.
 	if(active && FindPlayerPed() != nil && FindPlayerVehicle() == nil){

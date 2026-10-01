@@ -21,11 +21,11 @@ namespace McEntities
 {
 
 static bool
-NearBounds(const CVector &p, int minX, int minY, int minZ, int maxX, int maxY, int maxZ)
+NearBounds(const CVector &p, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, float margin)
 {
-	return p.x >= minX - 2 && p.x <= maxX + 3 &&
-		p.y >= minY - 2 && p.y <= maxY + 3 &&
-		p.z >= minZ - 3 && p.z <= maxZ + 4;
+	return p.x >= minX - 2 - margin && p.x <= maxX + 3 + margin &&
+		p.y >= minY - 2 - margin && p.y <= maxY + 3 + margin &&
+		p.z >= minZ - 3 - margin && p.z <= maxZ + 4 + margin;
 }
 
 // Remove only the velocity component pointing into the block (against the push direction); no bounce.
@@ -51,7 +51,7 @@ UpdatePeds(Mc::World &world, int minX, int minY, int minZ, int maxX, int maxY, i
 		if(ped == nil || ped == player || ped->bInVehicle || !ped->bUsesCollision || ped->DyingOrDead())
 			continue;
 		CVector pos = ped->GetPosition();
-		if(!NearBounds(pos, minX, minY, minZ, maxX, maxY, maxZ))
+		if(!NearBounds(pos, minX, minY, minZ, maxX, maxY, maxZ, 0.0f))
 			continue;
 		float fx = pos.x, fy = pos.y, fz = pos.z - McInteract::bodyFeetOffset;
 		Mc::CollideResult r = Mc::PushOutOfBlocks(world, fx, fy, fz, McInteract::bodyHalfWidth, McInteract::bodyHeight);
@@ -107,6 +107,12 @@ VehicleVelocityResponse(CVector &vel, const CVector &n)
 		vel -= n * (1.2f * d);
 }
 
+static void
+ClearVehicleHistory(void)
+{
+	ms_prevPos.clear();
+}
+
 // Accepted limitation: wheels use their own suspension probes which ignore voxels, so a car pushed on top
 // of a block is held at the top but gets no wheel ground contact.
 static void
@@ -119,10 +125,13 @@ UpdateVehicles(Mc::World &world, int minX, int minY, int minZ, int maxX, int max
 		if(veh == nil || !veh->bUsesCollision || !veh->IsCar())
 			continue;
 		CVector pos = veh->GetPosition();
-		if(!IsFiniteVec(pos) || !NearBounds(pos, minX, minY, minZ, maxX, maxY, maxZ))
+		if(!IsFiniteVec(pos))
+			continue;
+		float radius = veh->GetColModel()->boundingSphere.radius;
+		if(!std::isfinite(radius) || !NearBounds(pos, minX, minY, minZ, maxX, maxY, maxZ, radius + 2.0f))
 			continue;
 		Mc::OrientedBox box = BuildVehicleBox(veh);
-		if(!std::isfinite(box.x) || !std::isfinite(box.y) || !std::isfinite(box.zBottom) ||
+		if(!std::isfinite(box.x) || !std::isfinite(box.y) || !std::isfinite(box.zBottom) || !std::isfinite(box.zTop) ||
 		   !std::isfinite(box.halfU) || !std::isfinite(box.halfV) || !std::isfinite(box.yaw)){
 			newPrev[veh] = pos;
 			continue;
@@ -135,7 +144,8 @@ UpdateVehicles(Mc::World &world, int minX, int minY, int minZ, int maxX, int max
 		if(it != ms_prevPos.end()){
 			CVector disp = pos - it->second;
 			float len = disp.Magnitude();
-			if(IsFiniteVec(disp) && len > 0.3f){
+			// More than 4.0 per frame is a warp: no sweep.
+			if(IsFiniteVec(disp) && len > 0.3f && len <= 4.0f){
 				Mc::OrientedBox from = box;
 				from.x -= disp.x;
 				from.y -= disp.y;
@@ -143,15 +153,26 @@ UpdateVehicles(Mc::World &world, int minX, int minY, int minZ, int maxX, int max
 				from.zTop -= disp.z;
 				Mc::SweepResult sr = Mc::SweepBox(world, from, disp.x, disp.y, disp.z);
 				if(sr.blocked){
-					corr.x = sr.x - box.x;
-					corr.y = sr.y - box.y;
-					corr.z = (from.zBottom + sr.dz) - box.zBottom;
-					travel = disp * (1.0f / len);
-					swept = true;
-					cur.x += corr.x;
-					cur.y += corr.y;
-					cur.zBottom += corr.z;
-					cur.zTop += corr.z;
+					bool apply;
+					if(!Mc::BoxOverlapsBlocks(world, box))
+						apply = true;	// tunnelled through
+					else{
+						// Apply only if the push would carry the car forward through the wall.
+						Mc::OrientedBox tmp = box;
+						Mc::BoxPush tp = Mc::PushBoxOutOfBlocks(world, tmp);
+						apply = tp.moved && tp.dx * disp.x + tp.dy * disp.y + tp.dz * disp.z > 0.0f;
+					}
+					if(apply){
+						corr.x = sr.x - box.x;
+						corr.y = sr.y - box.y;
+						corr.z = (from.zBottom + sr.dz) - box.zBottom;
+						travel = disp * (1.0f / len);
+						swept = true;
+						cur.x += corr.x;
+						cur.y += corr.y;
+						cur.zBottom += corr.z;
+						cur.zTop += corr.z;
+					}
 				}
 			}
 		}
@@ -162,10 +183,14 @@ UpdateVehicles(Mc::World &world, int minX, int minY, int minZ, int maxX, int max
 			total.x += push.dx;
 			total.y += push.dy;
 			total.z += push.dz;
+			// Sane maximum for the push-out: a car spawned inside blocks must not be teleported.
+			float plen = sqrtf(push.dx * push.dx + push.dy * push.dy + push.dz * push.dz);
+			if(!(plen <= 3.0f)){
+				newPrev[veh] = pos;
+				continue;
+			}
 		}
-		float tlen = total.Magnitude();
-		// Sane maximum: a car spawned inside blocks must not be teleported.
-		if(!IsFiniteVec(total) || tlen > 3.0f){
+		if(!IsFiniteVec(total)){
 			newPrev[veh] = pos;
 			continue;
 		}
@@ -191,8 +216,10 @@ void
 Update(Mc::World &world)
 {
 	int minX, minY, minZ, maxX, maxY, maxZ;
-	if(!world.GetBounds(minX, minY, minZ, maxX, maxY, maxZ))
+	if(!world.GetBounds(minX, minY, minZ, maxX, maxY, maxZ)){
+		ClearVehicleHistory();
 		return;
+	}
 	UpdatePeds(world, minX, minY, minZ, maxX, maxY, maxZ);
 	UpdateVehicles(world, minX, minY, minZ, maxX, maxY, maxZ);
 }

@@ -1,5 +1,6 @@
 #include "McWorld.h"
 #include <string.h>
+#include <stdio.h>
 
 namespace Mc {
 
@@ -90,8 +91,61 @@ void World::Clear()
 	m_chunks.clear();
 }
 
-// Task 2 replaces these stubs.
-bool World::Save(const char *) const { return false; }
-bool World::Load(const char *) { return false; }
+bool World::Save(const char *path) const
+{
+	FILE *f = fopen(path, "wb");
+	if(f == nullptr)
+		return false;
+	uint32_t n = (uint32_t)m_chunks.size();
+	bool ok = fwrite("MCW1", 1, 4, f) == 4 && fwrite(&n, sizeof(n), 1, f) == 1;
+	for(ChunkMap::const_iterator it = m_chunks.begin(); ok && it != m_chunks.end(); ++it){
+		int32_t pos[3] = { it->first.x, it->first.y, it->first.z };
+		ok = fwrite(pos, sizeof(pos), 1, f) == 1 &&
+			fwrite(it->second->blocks, 1, CHUNK_VOLUME, f) == (size_t)CHUNK_VOLUME;
+	}
+	if(fclose(f) != 0)
+		ok = false;
+	return ok;
+}
+
+bool World::Load(const char *path)
+{
+	Clear();
+	FILE *f = fopen(path, "rb");
+	if(f == nullptr)
+		return false;
+	char magic[4];
+	uint32_t n = 0;
+	bool ok = fread(magic, 1, 4, f) == 4 && memcmp(magic, "MCW1", 4) == 0 &&
+		fread(&n, sizeof(n), 1, f) == 1 && n <= 1000000u;
+	for(uint32_t i = 0; ok && i < n; i++){
+		int32_t pos[3];
+		Chunk *c = new Chunk;
+		ok = fread(pos, sizeof(pos), 1, f) == 1 &&
+			fread(c->blocks, 1, CHUNK_VOLUME, f) == (size_t)CHUNK_VOLUME;
+		if(!ok){
+			delete c;
+			break;
+		}
+		c->count = 0;
+		for(int j = 0; j < CHUNK_VOLUME; j++)
+			if(c->blocks[j] != BLOCK_AIR)
+				c->count++;
+		c->dirty = true;
+		ChunkPos p = { pos[0], pos[1], pos[2] };
+		ChunkMap::iterator old = m_chunks.find(p);
+		if(c->count == 0){
+			delete c;
+		}else{
+			if(old != m_chunks.end())
+				delete old->second;
+			m_chunks[p] = c;
+		}
+	}
+	fclose(f);
+	if(!ok)
+		Clear();
+	return ok;
+}
 
 }

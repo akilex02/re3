@@ -94,3 +94,81 @@ MC_TEST(world_unknown_block_id_is_air_info)
 	MC_CHECK(GetBlockInfo(BLOCK_GLASS).transparent);
 	MC_CHECK(!GetBlockInfo(BLOCK_STONE).transparent);
 }
+
+#include <stdio.h>
+#include <string.h>
+
+static const char *kTmp = "mctest_world.tmp";
+
+MC_TEST(world_save_load_roundtrip)
+{
+	World a;
+	a.Set(3, 4, 5, BLOCK_STONE);
+	a.Set(-40, 7, -1, BLOCK_GLASS);
+	MC_CHECK(a.Save(kTmp));
+
+	World b;
+	b.Set(99, 99, 99, BLOCK_DIRT);	// must be discarded by Load
+	MC_CHECK(b.Load(kTmp));
+	MC_CHECK_EQ(b.Get(3, 4, 5), BLOCK_STONE);
+	MC_CHECK_EQ(b.Get(-40, 7, -1), BLOCK_GLASS);
+	MC_CHECK_EQ(b.Get(99, 99, 99), BLOCK_AIR);
+	MC_CHECK_EQ(b.ChunkCount(), 2);
+	ChunkPos p = { 0, 0, 0 };
+	MC_CHECK(b.FindChunk(p)->dirty);
+	MC_CHECK_EQ(b.FindChunk(p)->count, 1);
+	remove(kTmp);
+}
+
+MC_TEST(world_load_missing_file_fails_and_empties)
+{
+	World w;
+	w.Set(1, 1, 1, BLOCK_DIRT);
+	MC_CHECK(!w.Load("definitely_not_here.dat"));
+	MC_CHECK_EQ(w.ChunkCount(), 0);
+}
+
+MC_TEST(world_load_wrong_magic_fails)
+{
+	FILE *f = fopen(kTmp, "wb");
+	fwrite("XXXX\0\0\0\0", 1, 8, f);
+	fclose(f);
+	World w;
+	MC_CHECK(!w.Load(kTmp));
+	MC_CHECK_EQ(w.ChunkCount(), 0);
+	remove(kTmp);
+}
+
+MC_TEST(world_load_truncated_fails_and_empties)
+{
+	World a;
+	a.Set(1, 1, 1, BLOCK_DIRT);
+	MC_CHECK(a.Save(kTmp));
+	// chop the file in the middle of the chunk payload
+	FILE *f = fopen(kTmp, "rb");
+	char buf[64];
+	size_t n = fread(buf, 1, sizeof(buf), f);
+	fclose(f);
+	MC_CHECK(n == sizeof(buf));
+	f = fopen(kTmp, "wb");
+	fwrite(buf, 1, sizeof(buf), f);
+	fclose(f);
+
+	World w;
+	MC_CHECK(!w.Load(kTmp));
+	MC_CHECK_EQ(w.ChunkCount(), 0);
+	remove(kTmp);
+}
+
+MC_TEST(world_load_absurd_chunk_count_fails)
+{
+	FILE *f = fopen(kTmp, "wb");
+	fwrite("MCW1", 1, 4, f);
+	uint32_t n = 0xFFFFFFFFu;
+	fwrite(&n, 4, 1, f);
+	fclose(f);
+	World w;
+	MC_CHECK(!w.Load(kTmp));
+	MC_CHECK_EQ(w.ChunkCount(), 0);
+	remove(kTmp);
+}

@@ -17,6 +17,7 @@
 #include "McEntities.h"
 #include "McHotbar.h"
 #include "McSurvival.h"
+#include "McInventoryUI.h"
 #include "McStarterPatch.h"
 #ifdef MINECRAFT_SURVIVAL
 #include "mc_bridge.h"
@@ -123,7 +124,12 @@ Update(void)
 		printf("McMode: Steve mode %s\n", active ? "ON" : "OFF");
 	}
 
+	// the inventory screen runs first: while it is open the player's controls are off and McInteract stands down
 	if(active)
+		McInventoryUI::Update();
+	else
+		McInventoryUI::Close();
+	if(active && !McInventoryUI::IsOpen())
 		McInteract::Update(world);
 
 	if(active && CPad::GetPad(0)->GetFJustDown(patchKey) && McInteract::CanInteract()){
@@ -169,7 +175,13 @@ Render(void)
 void
 Render2d(void)
 {
-	if(!active || !McInteract::CanInteract() || TheCamera.m_WideScreenOn)
+	if(!active || TheCamera.m_WideScreenOn)
+		return;
+	if(McInventoryUI::IsOpen()){
+		McInventoryUI::Render2d();
+		return;
+	}
+	if(!McInteract::CanInteract())
 		return;
 	McHotbar::Draw();
 }

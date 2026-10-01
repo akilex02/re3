@@ -71,12 +71,40 @@ SetTextStyle(float scaleX, float scaleY)
 	CFont::SetColor(CRGBA(255, 255, 255, 255));
 }
 
+// Icon, wear bar and stack count of one inventory slot inside the given rectangle.
+void
+McHotbar::DrawSlotItem(const McSurv::Slot &slot, float x, float y, float w, float h)
+{
+	RwTexture *atlas = McAtlas::GetTexture();
+	float inset = w * iconInset;
+	DrawIcon((uint8)slot.item, CRect(x + inset, y + inset, x + w - inset, y + h - inset), atlas);
+	if(slot.maxDamage > 0 && slot.damage > 0){
+		// wear bar along the bottom edge: green when new, red when about to break
+		float left = 1.0f - (float)slot.damage / (float)slot.maxDamage;
+		if(left < 0.0f) left = 0.0f;
+		float bh = SCREEN_SCALE_Y(3.0f);
+		float by = y + h - bh - SCREEN_SCALE_Y(2.0f);
+		float bx = x + w * 0.1f;
+		float bw = w * 0.8f;
+		CSprite2d::DrawRect(CRect(bx, by, bx + bw, by + bh), CRGBA(0, 0, 0, 255));
+		CSprite2d::DrawRect(CRect(bx, by, bx + bw * left, by + bh), CRGBA((uint8)(255.0f * (1.0f - left)), (uint8)(255.0f * left), 0, 255));
+	}
+	if(slot.count > 1){
+		char text[16];
+		sprintf(text, "%d", slot.count);
+		AsciiToUnicode(text, gUString);
+		SetTextStyle(0.35f, 0.55f);
+		float tw = CFont::GetStringWidth(gUString, true);
+		CFont::PrintString(x + w - tw - SCREEN_SCALE_X(2.0f), y + h - SCREEN_SCALE_Y(14.0f), gUString);
+		CFont::SetDropShadowPosition(0);
+	}
+}
+
 // Survival hotbar: the nine inventory slots with stack counts and tool wear bars, plus the mining progress bar.
 static void
 DrawSurvival(void)
 {
 	const int count = McSurv::HOTBAR_SLOTS;
-	RwTexture *atlas = McAtlas::GetTexture();
 	float frame = SCREEN_SCALE_Y(2.0f);
 	float barBottom = 0.0f;
 	int selectedSlot = McSurv::SelectedSlot();
@@ -97,19 +125,7 @@ DrawSurvival(void)
 		if(McSurv::GetSlot(McSurv::AREA_INV, i, slot)){
 			if(selected)
 				selectedItem = slot;
-			float inset = s.w * iconInset;
-			DrawIcon((uint8)slot.item, CRect(s.x + inset, s.y + inset, s.x + s.w - inset, s.y + s.h - inset), atlas);
-			if(slot.maxDamage > 0 && slot.damage > 0){
-				// wear bar along the bottom edge: green when new, red when about to break
-				float left = 1.0f - (float)slot.damage / (float)slot.maxDamage;
-				if(left < 0.0f) left = 0.0f;
-				float bh = SCREEN_SCALE_Y(3.0f);
-				float by = s.y + s.h - bh - SCREEN_SCALE_Y(2.0f);
-				float bx = s.x + s.w * 0.1f;
-				float bw = s.w * 0.8f;
-				CSprite2d::DrawRect(CRect(bx, by, bx + bw, by + bh), CRGBA(0, 0, 0, 255));
-				CSprite2d::DrawRect(CRect(bx, by, bx + bw * left, by + bh), CRGBA((uint8)(255.0f * (1.0f - left)), (uint8)(255.0f * left), 0, 255));
-			}
+			McHotbar::DrawSlotItem(slot, s.x, s.y, s.w, s.h);
 		}
 		if(selected){
 			CRGBA white(255, 255, 255, 255);
@@ -118,21 +134,6 @@ DrawSurvival(void)
 			CSprite2d::DrawRect(CRect(s.x, s.y + frame, s.x + frame, s.y + s.h - frame), white);
 			CSprite2d::DrawRect(CRect(s.x + s.w - frame, s.y + frame, s.x + s.w, s.y + s.h - frame), white);
 		}
-	}
-
-	// stack counts (drawn after the sprites so the text is not covered by the next slot)
-	for(int i = 0; i < count; i++){
-		McSurv::Slot slot;
-		if(!McSurv::GetSlot(McSurv::AREA_INV, i, slot) || slot.count <= 1)
-			continue;
-		Mc::HotbarSlot s = Mc::HotbarSlotRect(i, count, SCREEN_WIDTH, SCREEN_HEIGHT, i == selectedSlot);
-		char text[16];
-		sprintf(text, "%d", slot.count);
-		AsciiToUnicode(text, gUString);
-		SetTextStyle(0.35f, 0.55f);
-		float w = CFont::GetStringWidth(gUString, true);
-		CFont::PrintString(s.x + s.w - w - SCREEN_SCALE_X(2.0f), s.y + s.h - SCREEN_SCALE_Y(14.0f), gUString);
-		CFont::SetDropShadowPosition(0);
 	}
 
 	// name of the selected item under the bar

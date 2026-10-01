@@ -17,6 +17,7 @@
 #include "McHotbarLayout.h"
 #include "McItemTable.h"
 #include "McSurvival.h"
+#include "McInventoryUI.h"
 
 static const float reach = 6.0f;
 static const float survivalReach = 5.0f;	// MinecraftOSS mining reach
@@ -174,6 +175,13 @@ Update(Mc::World &world)
 			return;
 		world.Set(hit.x, hit.y, hit.z, Mc::BLOCK_AIR);
 		printf("McInteract: broke block at (%d,%d,%d)\n", hit.x, hit.y, hit.z);
+		return;
+	}
+
+	// survival: a right click on a crafting table opens its 3x3 screen instead of placing a block
+	if(survival && !gtaNearest && hit.hit && hit.t <= survivalReach &&
+			world.Get(hit.x, hit.y, hit.z) == (uint8)Mc::FindItemByName("minecraft:crafting_table")){
+		McInventoryUI::Open(true);
 		return;
 	}
 

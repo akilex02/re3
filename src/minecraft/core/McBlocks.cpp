@@ -3,19 +3,22 @@
 
 namespace Mc {
 
-const BlockInfo &GetBlockInfo(uint8_t id)
-{
-	static BlockInfo table[BLOCK_COUNT];
-	static bool built = false;
-	if(!built){
+struct BlockTable {
+	BlockInfo entries[BLOCK_COUNT];
+	BlockTable()
+	{
 		for(int i = 0; i < BLOCK_COUNT; i++){
 			const ItemInfo &it = GetItemInfo((uint8_t)i);
 			BlockInfo b = { it.name, it.r, it.g, it.b, it.transparent };
-			table[i] = b;
+			entries[i] = b;
 		}
-		built = true;
 	}
-	return table[id < BLOCK_COUNT ? id : (uint8_t)BLOCK_AIR];
+};
+
+const BlockInfo &GetBlockInfo(uint8_t id)
+{
+	static const BlockTable table;	// thread-safe initialisation
+	return table.entries[id < BLOCK_COUNT ? id : (uint8_t)BLOCK_AIR];
 }
 
 }

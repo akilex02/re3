@@ -132,7 +132,6 @@ ReadJsonFile(const char *path, std::string &out)
 static void
 RemoveTemporaryFiles(void)
 {
-	remove(jarFile);
 	remove(manifestFile);
 	remove(versionFile);
 }
@@ -165,28 +164,22 @@ PrintableId(const std::string &id)
 	return id.c_str();
 }
 
-// Extracts every block and item texture from the client jar. Decides by the files: unzip returns 1 for
-// warnings and 11 when a named entry is missing.
-static bool
-ExtractTextures(bool report)
+// Extracts every block and item texture from the client jar and returns how many exist afterwards.
+// Entries missing from the jar are tolerated (their tile keeps its flat colour); zero means the jar is
+// unusable. unzip returns 1 for warnings and 11 when a named entry is missing, so the files decide.
+static int
+ExtractTextures(void)
 {
 	std::string cmd = std::string("unzip -o -j -q \"") + jarFile + "\"";
 	for(int id = 1; id < Mc::ITEM_COUNT; id++)
 		cmd += std::string(" \"") + jarTextureDir + Mc::BlockTextureFile(id) + "\"";
 	cmd += std::string(" -d \"") + assetDir + "\"";
-	int status = RunCommand(cmd);
-	for(int id = 1; id < Mc::ITEM_COUNT; id++){
-		std::string path = LocalTexturePath(id);
-		if(FileSize(path.c_str()) <= 0){
-			if(report)
-				printf("McAtlas: download failed at step 'extract textures' (unzip returned %d, %s missing); using flat colours\n",
-					status, path.c_str());
-			return false;
-		}
-	}
-	if(status != 0 && report)
-		printf("McAtlas: note: unzip returned %d but all textures were extracted\n", status);
-	return true;
+	RunCommand(cmd);
+	int n = 0;
+	for(int id = 1; id < Mc::ITEM_COUNT; id++)
+		if(FileSize(LocalTexturePath(id).c_str()) > 0)
+			n++;
+	return n;
 }
 
 // Every string reaching the shell is built from the constants above plus URLs that passed
@@ -202,11 +195,13 @@ Download(uint32 session)
 	if(!MakeAssetDir())
 		return Fail("create mcassets", strerror(errno));
 
-	// upgrade path: a client jar left from an older version may already hold the new textures
+	// the client jar is kept after the first download: extract from it, download only when it is missing or unusable
 	if(FileSize(jarFile) > 0){
 		printf("McAtlas: extracting textures from the existing client jar\n");
-		if(ExtractTextures(false))
+		if(ExtractTextures() > 0)
 			return true;
+		printf("McAtlas: existing client jar is unusable; downloading it again\n");
+		remove(jarFile);
 		if(Stopped(session))
 			return false;
 	}
@@ -254,7 +249,11 @@ Download(uint32 session)
 	if(Stopped(session))
 		return false;
 
-	return ExtractTextures(true);
+	if(ExtractTextures() == 0){
+		remove(jarFile);	// truncated or not a jar
+		return Fail("extract textures", "no texture could be extracted from the client jar");
+	}
+	return true;
 }
 
 static void
@@ -428,7 +427,7 @@ Init(void)
 	currentSession = ++sessionCounter;
 
 	if(CacheComplete()){
-		// leftovers of a download whose curl or unzip finished after the game had quit
+		// leftovers of a download whose curl finished after the game had quit
 		RemoveTemporaryFiles();
 		LoadAtlas();
 		return;

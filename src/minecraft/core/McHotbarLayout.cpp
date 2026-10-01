@@ -1,4 +1,5 @@
 #include "McHotbarLayout.h"
+#include "McAtlasData.h"
 
 namespace Mc {
 
@@ -25,12 +26,12 @@ HotbarSlot HotbarSlotRect(int index, int count, float screenW, float screenH, bo
 
 void BlockTileUV(uint8_t id, float &u0, float &v0, float &u1, float &v1)
 {
-	const float inset = 0.5f / 128.0f;
-	int tx = id % 8, ty = id / 8;
-	u0 = (float)tx / 8.0f + inset;
-	u1 = (float)(tx + 1) / 8.0f - inset;
-	v0 = (float)ty / 8.0f + inset;
-	v1 = (float)(ty + 1) / 8.0f - inset;
+	const float inset = 0.5f / (float)ATLAS_PIXELS;
+	int tx = id % ATLAS_TILES, ty = id / ATLAS_TILES;
+	u0 = (float)tx / (float)ATLAS_TILES + inset;
+	u1 = (float)(tx + 1) / (float)ATLAS_TILES - inset;
+	v0 = (float)ty / (float)ATLAS_TILES + inset;
+	v1 = (float)(ty + 1) / (float)ATLAS_TILES - inset;
 }
 
 int HotbarCount()

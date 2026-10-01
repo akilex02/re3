@@ -55,5 +55,13 @@ namespace McInteract
 		}
 	}
 
+	// True while the player may interact: a living, controllable player outside cutscenes and replays.
+	// Shared by Update, the hotbar keys and the hotbar drawing.
+	bool CanInteract(void);
+
+	uint8 GetSelectedBlock(void);
+	// Ignores ids outside 1..BLOCK_COUNT-1.
+	void SetSelectedBlock(uint8 id);
+
 	void Update(Mc::World &world);
 }

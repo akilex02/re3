@@ -8,6 +8,7 @@ namespace McMode
 	void Shutdown(void);
 	void Update(void);
 	void Render(void);
+	void Render2d(void);
 	bool IsActive(void);
 	Mc::World &GetWorld(void);
 }

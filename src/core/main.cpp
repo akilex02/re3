@@ -1531,6 +1531,9 @@ Render2dStuff(void)
 	CDarkel::DrawMessages();
 	CGarages::PrintMessages();
 	CPad::PrintErrorMessage();
+#ifdef MINECRAFT_MODE
+	McMode::Render2d();
+#endif
 	CFont::DrawFonts();
 
 #ifdef DEBUGMENU

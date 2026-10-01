@@ -3,6 +3,7 @@
 #ifdef MINECRAFT_MODE
 
 #include "Pad.h"
+#include "Camera.h"
 #include "Timer.h"
 #include "Ped.h"
 #include "PlayerPed.h"
@@ -14,6 +15,7 @@
 #include "McInteract.h"
 #include "McCollide.h"
 #include "McEntities.h"
+#include "McHotbar.h"
 
 static const char *saveFile = "mcworld.dat";
 static const int toggleKey = 7;	// F8, zero based
@@ -141,6 +143,15 @@ void
 Render(void)
 {
 	McRenderer::Render(world);
+}
+
+// Called from Render2dStuff() after the HUD.
+void
+Render2d(void)
+{
+	if(!active || !McInteract::CanInteract() || TheCamera.m_WideScreenOn)
+		return;
+	McHotbar::Draw();
 }
 
 }

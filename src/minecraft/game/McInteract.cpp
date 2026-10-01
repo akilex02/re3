@@ -14,6 +14,7 @@
 #include "CutsceneMgr.h"
 #include "Replay.h"
 #include "McInteract.h"
+#include "McHotbarLayout.h"
 
 static const float reach = 6.0f;
 static uint8 selected = Mc::BLOCK_STONE;
@@ -58,16 +59,38 @@ GtaHit(const CVector &from, const CVector &to, CEntity *&entity, CVector &point,
 	return reach + 1.0f;
 }
 
+bool
+CanInteract(void)
+{
+	CPlayerPed *player = FindPlayerPed();
+	return !(player == nil || player->DyingOrDead() || CCutsceneMgr::IsRunning() || CCutsceneMgr::IsCutsceneProcessing() ||
+		CPad::GetPad(0)->ArePlayerControlsDisabled() || CReplay::IsPlayingBack());
+}
+
+uint8
+GetSelectedBlock(void)
+{
+	return selected;
+}
+
+void
+SetSelectedBlock(uint8 id)
+{
+	if(id < 1 || id >= Mc::BLOCK_COUNT)
+		return;
+	selected = id;
+	printf("McInteract: selected block %s\n", Mc::GetBlockInfo(selected).name);
+}
+
 void
 Update(Mc::World &world)
 {
 	CPad *pad = CPad::GetPad(0);
-	CPlayerPed *player = FindPlayerPed();
 
 	// no interaction without a living, controllable player outside cutscenes and replays
-	if(player == nil || player->DyingOrDead() || CCutsceneMgr::IsRunning() || CCutsceneMgr::IsCutsceneProcessing() ||
-	   pad->ArePlayerControlsDisabled() || CReplay::IsPlayingBack())
+	if(!CanInteract())
 		return;
+	CPlayerPed *player = FindPlayerPed();
 
 	bool wheelUp = pad->GetMouseWheelUpJustDown();
 	bool wheelDown = pad->GetMouseWheelDownJustDown();
@@ -76,9 +99,14 @@ Update(Mc::World &world)
 		int i = selected - 1;
 		i += wheelUp ? 1 : -1;
 		i = (i % n + n) % n;
-		selected = (uint8)(i + 1);
-		printf("McInteract: selected block %s\n", Mc::GetBlockInfo(selected).name);
+		SetSelectedBlock((uint8)(i + 1));
 	}
+
+	// number keys 1.. pick a hotbar slot (just pressed, not held)
+	int keys = Mc::HotbarCount() < 9 ? Mc::HotbarCount() : 9;
+	for(int k = 0; k < keys; k++)
+		if(pad->GetCharJustDown('1' + k))
+			SetSelectedBlock(Mc::HotbarBlock(k));
 
 	bool breakBlock = pad->GetLeftMouseJustDown();
 	bool placeBlock = pad->GetRightMouseJustDown();
